@@ -50,6 +50,6 @@ functions/.env.local
 *.temp
 .cache/
 
-# Package folders
-smartfinder_v3_pkce_package/
-smartfinder_full_gemini_package_v2/
+# Package folders - Now included in repository for reference
+# smartfinder_v3_pkce_package/
+# smartfinder_full_gemini_package_v2/
