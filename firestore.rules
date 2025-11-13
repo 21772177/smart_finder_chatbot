@@ -1,0 +1,20 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Chat sessions - users can only access their own sessions
+    match /sessions/{sessionId} {
+      allow read, write: if request.auth != null || request.resource.data.token == resource.data.token;
+    }
+    
+    // User messages - stored per session
+    match /sessions/{sessionId}/messages/{messageId} {
+      allow read, write: if request.auth != null || request.resource.data.token == resource.data.token;
+    }
+    
+    // User preferences (device tokens)
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
+

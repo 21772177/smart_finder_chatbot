@@ -1,0 +1,36 @@
+<!-- sample_frontend.html - minimal chatbot UI -->
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Smart Finder AI - Demo</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    #chat { border:1px solid #ddd; padding:10px; width:480px; height:400px; overflow:auto; }
+    #input { width:380px; }
+  </style>
+</head>
+<body>
+  <h3>Smart Finder AI - Demo</h3>
+  <div id="chat"></div>
+  <input id="input" placeholder="Type: Where can we eat here North Indian?" />
+  <button id="send">Send</button>
+
+  <script>
+    const chat = document.getElementById('chat');
+    const input = document.getElementById('input');
+    document.getElementById('send').onclick = async () => {
+      const q = input.value;
+      chat.innerHTML += '<div><b>You:</b> ' + q + '</div>';
+      // call backend /api/query
+      const res = await fetch('/api/query', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({query: q, location: {lat:12.9716, lng:77.5946}, token: localStorage.getItem('sf_token')})
+      });
+      const data = await res.json();
+      chat.innerHTML += '<div><b>Bot:</b> ' + JSON.stringify(data) + '</div>';
+    };
+  </script>
+</body>
+</html>

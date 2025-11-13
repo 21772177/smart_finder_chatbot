@@ -1,0 +1,15 @@
+{
+  "name": "smart-finder-chatbot",
+  "version": "1.0.0",
+  "description": "Smart Finder AI Chatbot with Firebase integration",
+  "scripts": {
+    "dev": "cd public && npm run dev",
+    "build": "cd public && npm run build",
+    "serve": "firebase serve",
+    "deploy": "firebase deploy"
+  },
+  "keywords": ["chatbot", "firebase", "ai"],
+  "author": "",
+  "license": "MIT"
+}
+

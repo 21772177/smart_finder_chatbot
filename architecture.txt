@@ -1,0 +1,31 @@
+Smart Finder AI Chatbot - Architecture (text)
+
+User Interface
+ - Web Chatbot (React)
+ - Optional: WhatsApp Bot (Twilio / Meta API)
+
+AI Core
+ - NLU + Intent Parser (OpenAI GPT-5 or LangChain)
+ - Router Engine (routes to Social, Local, Recall)
+ - Token Manager (device-local token logic)
+ - Privacy Guard (auto-clear, no persistent storage)
+
+Integration Layer (Live APIs)
+ - Google Maps / Places / Timeline
+ - YouTube Data API
+ - Instagram Graph API (limited; business endpoints)
+ - Zomato / local listings
+ - OpenStreetMap fallback
+
+Backend
+ - Node.js / Python API server
+ - In-memory session cache (Redis optional)
+ - No permanent user storage (tokens stored client-side)
+
+Response Engine
+ - Formats results as chat cards, map links, thumbnails
+
+Notes:
+ - Token manager stores only an anonymous device token on the user's browser/local device.
+ - For long-term recall (2+ months), the chatbot uses Google Maps Timeline (user must grant permission).
+ - For platforms without open APIs, consider browser extension or on-device connectors (out of scope for the initial chatbot MVP).

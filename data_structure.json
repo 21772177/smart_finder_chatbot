@@ -1,0 +1,19 @@
+{
+  "session_id": "uuid-v4",
+  "query": "Find Goa travel reels I saved last month",
+  "timestamp": "2025-10-26T10:15:00Z",
+  "sources": [
+    {
+      "platform": "YouTube",
+      "results": [
+        {
+          "title": "Goa Beach Vlog",
+          "thumbnail": "https://img.youtube.com/...",
+          "url": "https://youtube.com/...",
+          "type": "video",
+          "date": "2025-09-15"
+        }
+      ]
+    }
+  ]
+}
