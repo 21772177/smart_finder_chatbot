@@ -8,9 +8,64 @@
 
 ---
 
+## 🔐 Authentication Setup (First Time Only)
+
+GitHub requires authentication to push. Choose one method:
+
+### Option 1: Personal Access Token (Recommended)
+
+1. **Create a GitHub Personal Access Token:**
+   - Go to: https://github.com/settings/tokens
+   - Click "Generate new token (classic)"
+   - Select scopes: `repo` (full control)
+   - Copy the token
+
+2. **Use token for authentication:**
+   ```bash
+   git remote set-url origin https://YOUR_TOKEN@github.com/21772177/smart_finder_chatbot.git
+   ```
+
+### Option 2: SSH Key (More Secure)
+
+1. **Generate SSH key:**
+   ```bash
+   ssh-keygen -t ed25519 -C "your_email@example.com"
+   ```
+
+2. **Add to GitHub:**
+   - Copy public key: `cat ~/.ssh/id_ed25519.pub`
+   - Add to: https://github.com/settings/keys
+
+3. **Use SSH URL:**
+   ```bash
+   git remote set-url origin git@github.com:21772177/smart_finder_chatbot.git
+   ```
+
+### Option 3: GitHub CLI
+
+```bash
+# Install GitHub CLI
+sudo apt install gh  # or brew install gh on Mac
+
+# Authenticate
+gh auth login
+
+# Then push normally
+git push origin main
+```
+
+---
+
 ## 🔄 How to Update GitHub in Future
 
-### Option 1: Manual Push (Recommended)
+### Option 1: Quick Update Script (Easiest)
+
+```bash
+cd /home/nikhilesh/Android/Sdk/smart_finder_chatbot
+./update_github.sh "Your commit message"
+```
+
+### Option 2: Manual Push
 
 ```bash
 cd /home/nikhilesh/Android/Sdk/smart_finder_chatbot
@@ -26,24 +81,6 @@ git commit -m "Description of changes"
 
 # Push to GitHub
 git push origin main
-```
-
-### Option 2: Quick Update Script
-
-Create a script for easy updates:
-
-```bash
-#!/bin/bash
-cd /home/nikhilesh/Android/Sdk/smart_finder_chatbot
-git add .
-git commit -m "$1"
-git push origin main
-```
-
-Save as `update_github.sh` and use:
-```bash
-chmod +x update_github.sh
-./update_github.sh "Your commit message"
 ```
 
 ---
