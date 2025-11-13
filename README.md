@@ -62,37 +62,21 @@ cd ..
 
 ### 3. Configure API Keys
 
-**Option A: Using Firebase Functions Config (Recommended)**
+**📚 For complete step-by-step setup instructions, see:**
+- **[COMPLETE_SETUP_GUIDE.md](COMPLETE_SETUP_GUIDE.md)** - Detailed guide with screenshots and instructions
+- **[QUICK_SETUP_COMMANDS.sh](QUICK_SETUP_COMMANDS.sh)** - Quick reference commands
+
+**Quick Start:**
 
 ```bash
-# LLM (Required - at least one)
-firebase functions:config:set gemini.key="YOUR_GEMINI_API_KEY"
-# OR
-firebase functions:config:set openai.key="YOUR_OPENAI_API_KEY"
+# Check what's missing
+./SETUP_REQUIRED_KEYS.sh
 
-# YouTube (Required)
-firebase functions:config:set youtube.key="YOUR_YOUTUBE_API_KEY"
+# Follow COMPLETE_SETUP_GUIDE.md to get all credentials, then:
+./QUICK_SETUP_COMMANDS.sh  # Shows all commands to run
 
-# Google Maps (Optional)
-firebase functions:config:set google.maps_key="YOUR_MAPS_API_KEY"
-
-# OAuth Credentials (Required for platform connections)
-firebase functions:config:set youtube.client_id="YOUR_CLIENT_ID"
-firebase functions:config:set youtube.client_secret="YOUR_CLIENT_SECRET"
-firebase functions:config:set instagram.client_id="YOUR_CLIENT_ID"
-firebase functions:config:set instagram.client_secret="YOUR_CLIENT_SECRET"
-firebase functions:config:set facebook.app_id="YOUR_APP_ID"
-firebase functions:config:set facebook.app_secret="YOUR_APP_SECRET"
-
-# Deploy config
+# After setting all keys, deploy
 firebase deploy --only functions
-```
-
-**Option B: Using .env file (Local Development)**
-
-```bash
-cp env.example .env
-# Edit .env and add your API keys
 ```
 
 ### 4. Deploy
