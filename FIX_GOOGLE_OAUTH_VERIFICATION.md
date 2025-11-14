@@ -22,8 +22,11 @@ This happens because your OAuth app is in **Development/Testing mode** and needs
 1. Scroll down to **"Test users"** section
 2. Click **"+ ADD USERS"**
 3. Add email addresses of users who will test the app:
-   - Your email: `nikhilshingane@gmail.com`
-   - Any other test users' emails
+   - `nikhilshingane@gmail.com`
+   - `shinganenikhil842@gmail.com`
+   - `ruchitamamulkar@gmail.com`
+   - `savitashingane63@gmail.com`
+   - (More emails will be added later)
 4. Click **"ADD"**
 
 ### Step 3: Save Changes
@@ -73,7 +76,14 @@ Make sure these scopes are added:
 2. Select project: **buildkit-1695f**
 3. Scroll to **"Test users"**
 4. Click **"+ ADD USERS"**
-5. Add: `nikhilshingane@gmail.com` (and any other test emails)
+5. Add these test emails:
+   ```
+   nikhilshingane@gmail.com
+   shinganenikhil842@gmail.com
+   ruchitamamulkar@gmail.com
+   savitashingane63@gmail.com
+   ```
+   (More emails will be added in Round 2)
 6. Click **"SAVE"**
 
 **After this, the "App not verified" warning will still appear, but users can click "Advanced" → "Go to [App Name] (unsafe)" to proceed.**
