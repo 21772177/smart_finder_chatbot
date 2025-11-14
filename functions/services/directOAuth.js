@@ -39,7 +39,12 @@ router.get('/google', (req, res) => {
   const oauthBase = getOAuthBase();
   const redirect_uri = `${oauthBase}/auth/google/callback`;
   const scope = encodeURIComponent('https://www.googleapis.com/auth/maps.timeline.readonly https://www.googleapis.com/auth/userinfo.email openid');
-  const url = `https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=${client_id}&redirect_uri=${encodeURIComponent(redirect_uri)}&scope=${scope}&access_type=offline&prompt=consent`;
+  
+  // Optional: Pre-fill email if provided (login_hint parameter)
+  const login_hint = req.query.email || req.query.login_hint || '';
+  const loginHintParam = login_hint ? `&login_hint=${encodeURIComponent(login_hint)}` : '';
+  
+  const url = `https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=${client_id}&redirect_uri=${encodeURIComponent(redirect_uri)}&scope=${scope}&access_type=offline&prompt=consent${loginHintParam}`;
   res.redirect(url);
 });
 
@@ -142,7 +147,12 @@ router.get('/youtube', (req, res) => {
   const oauthBase = getOAuthBase();
   const redirect_uri = `${oauthBase}/auth/youtube/callback`;
   const scope = encodeURIComponent('https://www.googleapis.com/auth/youtube.readonly');
-  const url = `https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=${client_id}&redirect_uri=${encodeURIComponent(redirect_uri)}&scope=${scope}&access_type=offline&prompt=consent`;
+  
+  // Optional: Pre-fill email if provided (login_hint parameter)
+  const login_hint = req.query.email || req.query.login_hint || '';
+  const loginHintParam = login_hint ? `&login_hint=${encodeURIComponent(login_hint)}` : '';
+  
+  const url = `https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=${client_id}&redirect_uri=${encodeURIComponent(redirect_uri)}&scope=${scope}&access_type=offline&prompt=consent${loginHintParam}`;
   res.redirect(url);
 });
 

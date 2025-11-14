@@ -274,8 +274,12 @@ function closeAuthModal() {
 // Simple OAuth connection using direct routes (Gemini v2 approach)
 async function connectPlatform(platform) {
   try {
+    // Optional: Get user email from localStorage if available (for Google/YouTube OAuth pre-fill)
+    const userEmail = localStorage.getItem('sf_user_email');
+    const emailParam = (platform === 'youtube' || platform === 'google') && userEmail ? `?email=${encodeURIComponent(userEmail)}` : '';
+    
     // Use direct OAuth routes from Gemini v2 package
-    const popup = window.open(`/auth/${platform}`, 'sf_oauth_' + platform, 'width=600,height=700');
+    const popup = window.open(`/auth/${platform}${emailParam}`, 'sf_oauth_' + platform, 'width=600,height=700');
     
     // Listen for tokens from popup
     window.addEventListener('message', function handler(e) {
