@@ -124,6 +124,24 @@ async function fetchAllYouTubeContent(service, userId) {
     } catch (testErr) {
       console.error(`[YouTube Sync] API access test FAILED: ${testErr.message}`);
       console.error(`[YouTube Sync] Error details:`, testErr.response?.data || testErr);
+      
+      // Check if it's an authentication error
+      const isAuthError = testErr.message?.includes('Invalid Credentials') || 
+                         testErr.message?.includes('UNAUTHENTICATED') ||
+                         testErr.response?.status === 401;
+      
+      if (isAuthError) {
+        const errorMsg = 'OAuth token expired or invalid. Please reconnect YouTube to get a fresh token.';
+        console.error(`[YouTube Sync] ${errorMsg}`);
+        await logSync('youtube', userId, 'failed', { 
+          error: errorMsg,
+          errorType: 'authentication',
+          requiresReconnect: true,
+          details: testErr.response?.data 
+        });
+        throw new Error(errorMsg);
+      }
+      
       await logSync('youtube', userId, 'failed', { 
         error: `API access test failed: ${testErr.message}`,
         details: testErr.response?.data 

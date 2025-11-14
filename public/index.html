@@ -442,12 +442,20 @@ async function connectPlatform(platform) {
                 const syncData = await syncResponse.json();
                 console.log(`Background sync completed for ${provider}:`, syncData);
                 
+                // Check if token expired/invalid
+                if (syncData.requiresReconnect || (syncData.error && (syncData.error.includes('expired') || syncData.error.includes('invalid') || syncData.error.includes('reconnect')))) {
+                  append('Bot', `⚠️ ${provider} token expired. Please reconnect ${provider} to sync your content.`, 'bot');
+                  return;
+                }
+                
                 // Check if sync completed successfully
                 if (syncData.success && syncData.ready) {
                   // Show completion message
                   append('Bot', `✅ ${provider} sync complete! ${syncData.itemsIndexed} items indexed. All ready to start search!`, 'bot');
                 } else if (syncData.success) {
                   append('Bot', `✅ ${provider} sync complete! ${syncData.itemsIndexed} items indexed.`, 'bot');
+                } else if (syncData.error) {
+                  append('Bot', `⚠️ ${provider} sync failed: ${syncData.error}`, 'bot');
                 }
                 
                 // Poll for sync status to show final ready message

@@ -279,6 +279,11 @@ app.post('/api/sync', async (req, res) => {
     // Sync all content from platform
     const syncResult = await syncAllPlatformContent(identifier, platform, accessToken);
 
+    // Check if error requires reconnection
+    const requiresReconnect = syncResult.error?.includes('expired') || 
+                              syncResult.error?.includes('invalid') ||
+                              syncResult.error?.includes('reconnect');
+
     res.json({
       success: syncResult.success,
       platform: platform,
@@ -286,7 +291,9 @@ app.post('/api/sync', async (req, res) => {
       itemsIndexed: syncResult.itemsIndexed || 0,
       message: syncResult.message || `Synced ${syncResult.itemsIndexed} items from ${platform}`,
       syncedAt: syncResult.syncedAt || new Date().toISOString(),
-      ready: syncResult.success && syncResult.itemsIndexed > 0 // Ready to search
+      ready: syncResult.success && syncResult.itemsIndexed > 0, // Ready to search
+      requiresReconnect: requiresReconnect || false,
+      error: syncResult.error || null
     });
 
   } catch (error) {
