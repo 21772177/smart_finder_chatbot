@@ -87,6 +87,11 @@ firebase deploy --only functions,hosting
 
 ## 📚 Documentation
 
+- **`COMPLETE_SETUP_GUIDE.md`** - Step-by-step guide to set up all API keys and OAuth credentials (Developer setup - one time only)
+- **`DEVELOPER_VS_USER_SETUP.md`** - ⚠️ **IMPORTANT:** Explains the difference between developer setup and user experience
+- **`QUICK_SETUP_COMMANDS.sh`** - Quick reference commands for setup
+- **`SETUP_REQUIRED_KEYS.sh`** - Check which API keys are configured
+- **`API_KEYS_STATUS.md`** - Current status of configured API keys
 - **`env.example`** - Complete list of all required API keys
 - **`OAUTH_SETUP_GUIDE.md`** - Detailed OAuth setup instructions
 - **`GEMINI_SETUP.md`** - Gemini API setup and comparison

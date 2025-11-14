@@ -1,5 +1,9 @@
 # 🚀 Complete Setup Guide - Add All API Keys & OAuth Credentials
 
+> **⚠️ IMPORTANT:** This guide is for **YOU (the developer)** to set up ONCE. End users don't need to do any of this - they just connect their accounts via simple OAuth buttons!
+>
+> **For details on Developer vs User setup, see:** [`DEVELOPER_VS_USER_SETUP.md`](DEVELOPER_VS_USER_SETUP.md)
+
 This guide will walk you through setting up **all required API keys and OAuth credentials** step-by-step so your chatbot works fully.
 
 ---
@@ -59,8 +63,8 @@ This guide will walk you through setting up **all required API keys and OAuth cr
 cd /home/nikhilesh/Android/Sdk/smart_finder_chatbot
 
 # Set YouTube OAuth credentials
-firebase functions:config:set youtube.client_id="YOUR_YOUTUBE_CLIENT_ID_HERE"
-firebase functions:config:set youtube.client_secret="YOUR_YOUTUBE_CLIENT_SECRET_HERE"
+firebase functions:config:set youtube.client_id="402603487375-jf4rjbdpjinupif0o7f8ginrhb0gg1pf.apps.googleusercontent.com"
+firebase functions:config:set youtube.client_secret="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"
 ```
 
 **Replace `YOUR_YOUTUBE_CLIENT_ID_HERE` and `YOUR_YOUTUBE_CLIENT_SECRET_HERE` with actual values from step 1.1**
@@ -90,7 +94,7 @@ firebase functions:config:set youtube.client_secret="YOUR_YOUTUBE_CLIENT_SECRET_
 #### 2.3 Configure in Firebase
 
 ```bash
-firebase functions:config:set youtube.key="YOUR_YOUTUBE_API_KEY_HERE"
+firebase functions:config:set youtube.key="AIzaSyCpQL_n3PqlG_bOshGi1kD2DBz7H7qtJe4"
 ```
 
 **Replace `YOUR_YOUTUBE_API_KEY_HERE` with the API key from step 2.2**
@@ -378,4 +382,27 @@ After completing all steps, verify:
 - [ ] Tested search functionality
 
 **Once all items are checked, your chatbot will work fully!** 🎉
+
+---
+
+## 🎯 Important: Developer Setup vs User Experience
+
+### ⚠️ This Setup is for YOU (Developer) - One Time Only!
+
+**After you complete this setup:**
+- ✅ Your backend has all OAuth credentials
+- ✅ Your backend has all API keys
+- ✅ Users can connect their accounts via simple OAuth buttons
+- ✅ **Users don't need to set up anything!**
+
+### 👤 What Users Experience:
+
+1. Open chatbot: https://buildkit-1695f.web.app
+2. Click "Connect YouTube" → OAuth popup → Authorize → ✅ Done!
+3. Click "Connect Instagram" → OAuth popup → Authorize → ✅ Done!
+4. Start searching: "Find my saved videos" → Gets results!
+
+**No technical setup, API keys, or OAuth credentials needed for users!**
+
+**For full explanation, see:** [`DEVELOPER_VS_USER_SETUP.md`](DEVELOPER_VS_USER_SETUP.md)
 
