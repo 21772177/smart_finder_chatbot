@@ -8,6 +8,9 @@
 
 ## 📋 Step-by-Step: Publish Google OAuth App
 
+> **📖 For VERY DETAILED step-by-step instructions with exact field names and examples, see:**
+> **`OAUTH_CONSENT_SCREEN_DETAILED.md`** - Complete guide with all field details
+
 ### Step 1: Open OAuth Consent Screen
 
 **Direct Link:**
