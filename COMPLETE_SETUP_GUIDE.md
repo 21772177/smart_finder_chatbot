@@ -144,8 +144,8 @@ firebase functions:config:set youtube.key="AIzaSyCpQL_n3PqlG_bOshGi1kD2DBz7H7qtJ
 #### 3.4 Configure in Firebase
 
 ```bash
-firebase functions:config:set instagram.client_id="YOUR_INSTAGRAM_CLIENT_ID_HERE"
-firebase functions:config:set instagram.client_secret="YOUR_INSTAGRAM_CLIENT_SECRET_HERE"
+firebase functions:config:set instagram.client_id="1874072056536563"
+firebase functions:config:set instagram.client_secret="c4042cef188f10609f94849e64aa2c0f"
 ```
 
 **Replace with actual values from step 3.3**
@@ -177,8 +177,8 @@ firebase functions:config:set instagram.client_secret="YOUR_INSTAGRAM_CLIENT_SEC
 #### 4.3 Configure in Firebase
 
 ```bash
-firebase functions:config:set facebook.app_id="YOUR_FACEBOOK_APP_ID_HERE"
-firebase functions:config:set facebook.app_secret="YOUR_FACEBOOK_APP_SECRET_HERE"
+firebase functions:config:set facebook.app_id="1263833868842541"
+firebase functions:config:set facebook.app_secret="6711e76ce39be55e3ff68ab755edd133"
 ```
 
 **Replace with actual values from step 4.1**
@@ -211,7 +211,7 @@ firebase functions:config:set facebook.app_secret="YOUR_FACEBOOK_APP_SECRET_HERE
 #### 5.3 Configure in Firebase
 
 ```bash
-firebase functions:config:set google.maps_key="YOUR_GOOGLE_MAPS_API_KEY_HERE"
+firebase functions:config:set google.maps_key="AIzaSyCy5ri97yn_kpHbY8dP1zMhfDQ6iUI_eqk"
 ```
 
 **Replace with the API key from step 5.2**
@@ -237,8 +237,8 @@ firebase functions:config:set google.maps_key="YOUR_GOOGLE_MAPS_API_KEY_HERE"
 #### 6.2 Configure in Firebase
 
 ```bash
-firebase functions:config:set google.client_id="YOUR_GOOGLE_CLIENT_ID_HERE"
-firebase functions:config:set google.client_secret="YOUR_GOOGLE_CLIENT_SECRET_HERE"
+firebase functions:config:set google.client_id="402603487375-8e80kh484j2kn84m8rh9d2navb1tkhmm.apps.googleusercontent.com"
+firebase functions:config:set google.client_secret="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"
 ```
 
 **Replace with actual values from step 6.1**
