@@ -71,10 +71,14 @@ async function parseIntentWithLLM(query) {
   }
 
   const systemPrompt = `You are an intent classifier for a smart search chatbot. Classify user queries into one of these intents:
-- saved_content: User wants to search saved videos/reels/content from social media platforms (YouTube, Instagram, Facebook, etc.)
+- saved_content: User wants to search saved videos/reels/content from social media platforms (YouTube, Instagram, Facebook, etc.). This includes queries like "show me reels", "find saved videos", "goa reels", "liked videos", "saved content", etc.
+- reel_search: User wants to search for reels (Instagram reels, YouTube Shorts, etc.)
+- video_search: User wants to search for videos (YouTube videos, etc.)
 - nearby_restaurant: User wants to find nearby restaurants or places
 - recall: User wants to recall past visits or location history
 - general: General conversation or unclear intent
+
+IMPORTANT: If the query mentions "reel", "reels", "saved", "liked", "show me", "find", or asks about content from YouTube/Instagram/Facebook, classify it as "saved_content" or "reel_search" or "video_search".
 
 Respond with JSON only: {"intent": "intent_name", "platforms": ["platform1", "platform2"], "keywords": ["keyword1", "keyword2"]}`;
 

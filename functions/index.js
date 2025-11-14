@@ -113,16 +113,34 @@ app.post('/api/query', async (req, res) => {
     // Step 1: Parse intent using LLM
     const intentResult = await parseIntentWithLLM(queryText);
     const intent = intentResult.intent;
+    
+    // Get user tokens for logging
+    let userTokens = await getUserTokens(userIdentifier);
+    
+    // Enhanced logging for debugging
+    console.log(`[Query Debug] User: ${userIdentifier}, Query: "${queryText}"`);
+    console.log(`[Query Debug] Intent: ${intent}, Platforms: ${JSON.stringify(intentResult.platforms || [])}, Keywords: ${JSON.stringify(intentResult.keywords || [])}`);
+    console.log(`[Query Debug] User tokens - YouTube: ${!!userTokens.youtube}, Instagram: ${!!userTokens.instagram}, Facebook: ${!!userTokens.facebook}`);
 
     let results = [];
     let responseText = '';
 
     // Step 2: Route based on intent
-    if (intent === 'saved_content' || intent === 'reel_search' || intent === 'video_search') {
+    // Also check for common query patterns that indicate saved content search
+    const queryLower = queryText.toLowerCase();
+    const isContentQuery = intent === 'saved_content' || 
+                          intent === 'reel_search' || 
+                          intent === 'video_search' ||
+                          queryLower.includes('reel') ||
+                          queryLower.includes('saved') ||
+                          queryLower.includes('liked') ||
+                          queryLower.includes('show me') ||
+                          queryLower.includes('find') ||
+                          queryLower.includes('search');
+    
+    if (isContentQuery) {
       // Use Agentic Router for multi-platform search
       // Router prioritizes indexed cache (RAG) for immediate response
-      let userTokens = await getUserTokens(userIdentifier);
-      
       // Merge direct tokens if provided (from client localStorage)
       if (directTokens.instagram) userTokens.instagram = directTokens.instagram;
       if (directTokens.youtube) userTokens.youtube = directTokens.youtube;
@@ -130,8 +148,11 @@ app.post('/api/query', async (req, res) => {
       
       const router = new AgenticRouter(userTokens);
       
+      console.log(`[Query Debug] Starting search with router for user ${userIdentifier}`);
       const searchResults = await router.routeQuery(queryText, userIdentifier, intentResult);
       results = searchResults.results || [];
+      
+      console.log(`[Query Debug] Search completed - Found ${results.length} results (${searchResults.fromCache || 0} from cache, ${searchResults.fromAPI || 0} from API)`);
       
       // Log cache hit rate for monitoring
       if (searchResults.fromCache > 0) {
@@ -447,5 +468,57 @@ async function recallLastVisit(token, location) {
     location: location
   };
 }
+
+/**
+ * Debug endpoint - Check sync status and content index
+ */
+app.get('/api/debug/status', async (req, res) => {
+  try {
+    const { token } = req.query;
+    const userIdentifier = token || 'anonymous';
+    
+    // Get user tokens
+    const userTokens = await getUserTokens(userIdentifier);
+    
+    // Check content index count
+    const contentSnapshot = await db.collection('content_index')
+      .where('userId', '==', userIdentifier)
+      .limit(1)
+      .get();
+    
+    // Get all content to count (limit to reasonable number for performance)
+    const allContent = await db.collection('content_index')
+      .where('userId', '==', userIdentifier)
+      .limit(1000)
+      .get();
+    
+    // Check sync status
+    const syncStatus = {
+      youtube: {
+        connected: !!userTokens.youtube,
+        tokenLength: userTokens.youtube ? userTokens.youtube.length : 0
+      },
+      instagram: {
+        connected: !!userTokens.instagram,
+        tokenLength: userTokens.instagram ? userTokens.instagram.length : 0
+      },
+      facebook: {
+        connected: !!userTokens.facebook,
+        tokenLength: userTokens.facebook ? userTokens.facebook.length : 0
+      }
+    };
+    
+    res.json({
+      userIdentifier,
+      tokens: syncStatus,
+      contentIndexed: allContent.size,
+      hasContent: !contentSnapshot.empty,
+      message: 'Debug status retrieved successfully'
+    });
+  } catch (error) {
+    console.error('Debug status error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 exports.api = functions.https.onRequest(app);

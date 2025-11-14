@@ -26,8 +26,15 @@ class AgenticRouter {
   async routeQuery(query, userId, intentResult) {
     const { intent, platforms, keywords } = intentResult;
 
-    if (intent !== 'saved_content') {
-      return { results: [], message: 'This query is not for saved content search' };
+    // Accept multiple intent types for content search
+    const contentIntents = ['saved_content', 'reel_search', 'video_search'];
+    if (!contentIntents.includes(intent)) {
+      console.log(`[Router] Intent "${intent}" not recognized as content search, but proceeding anyway for query: "${query}"`);
+      // Don't return empty - proceed with search anyway if query looks like content search
+      const queryLower = query.toLowerCase();
+      if (!queryLower.includes('reel') && !queryLower.includes('video') && !queryLower.includes('saved') && !queryLower.includes('liked')) {
+        return { results: [], message: 'This query is not for saved content search' };
+      }
     }
 
     // Determine which platforms to search
