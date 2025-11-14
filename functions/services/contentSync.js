@@ -106,10 +106,30 @@ async function fetchAllYouTubeContent(service, userId) {
     }
     
     console.log(`[YouTube Sync] Starting fetch for user ${userId}`);
+    console.log(`[YouTube Sync] Access token present: ${!!service.accessToken}, length: ${service.accessToken?.length || 0}`);
+    
     const { google } = require('googleapis');
     const oauth2Client = new google.auth.OAuth2();
     oauth2Client.setCredentials({ access_token: service.accessToken });
     const youtube = google.youtube({ version: 'v3', auth: oauth2Client });
+    
+    // Test API access first
+    try {
+      const testResponse = await youtube.channels.list({
+        part: 'snippet',
+        mine: true,
+        maxResults: 1
+      });
+      console.log(`[YouTube Sync] API access test successful. Channel: ${testResponse.data.items?.[0]?.snippet?.title || 'Unknown'}`);
+    } catch (testErr) {
+      console.error(`[YouTube Sync] API access test FAILED: ${testErr.message}`);
+      console.error(`[YouTube Sync] Error details:`, testErr.response?.data || testErr);
+      await logSync('youtube', userId, 'failed', { 
+        error: `API access test failed: ${testErr.message}`,
+        details: testErr.response?.data 
+      });
+      throw new Error(`YouTube API access failed: ${testErr.message}`);
+    }
     
     // Get all playlists (saved videos)
     let playlistCount = 0;
@@ -159,11 +179,15 @@ async function fetchAllYouTubeContent(service, userId) {
             itemsPageToken = itemsResponse.data.nextPageToken;
             console.log(`[YouTube Sync] Fetched ${items.length} items from playlist "${playlist.snippet.title}"`);
           } catch (err) {
-            console.error(`[YouTube Sync] Error fetching playlist items for ${playlist.id}:`, err.message);
+            console.error(`[YouTube Sync] Error fetching playlist items for ${playlist.id} (${playlist.snippet.title}):`, err.message);
+            console.error(`[YouTube Sync] Error details:`, err.response?.data || err);
             await logSync('youtube', userId, 'failed', { 
               error: `Playlist fetch error: ${err.message}`,
-              playlistId: playlist.id 
+              playlistId: playlist.id,
+              playlistName: playlist.snippet.title,
+              errorDetails: err.response?.data 
             });
+            // Continue with other playlists instead of breaking
             break;
           }
         } while (itemsPageToken);
@@ -173,6 +197,51 @@ async function fetchAllYouTubeContent(service, userId) {
     } while (nextPageToken);
     
     console.log(`[YouTube Sync] Total playlists processed: ${playlistCount}, Total items from playlists: ${allContent.length}`);
+    
+    // Get Watch Later playlist (special playlist with ID 'WL')
+    try {
+      let wlPageToken = null;
+      let wlCount = 0;
+      do {
+        const wlResponse = await youtube.playlistItems.list({
+          part: 'snippet,contentDetails',
+          playlistId: 'WL', // Watch Later is a special playlist
+          maxResults: 50,
+          pageToken: wlPageToken
+        });
+        
+        const wlItems = wlResponse.data.items || [];
+        wlCount += wlItems.length;
+        console.log(`[YouTube Sync] Fetched ${wlItems.length} items from Watch Later (total so far: ${wlCount})`);
+        
+        for (const item of wlItems) {
+          allContent.push({
+            platform: 'YouTube',
+            id: item.snippet.resourceId.videoId,
+            title: item.snippet.title,
+            description: item.snippet.description || '',
+            thumbnail: item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url,
+            url: `https://www.youtube.com/watch?v=${item.snippet.resourceId.videoId}`,
+            channel: item.snippet.channelTitle,
+            publishedAt: item.snippet.publishedAt,
+            type: 'video',
+            savedIn: 'Watch Later',
+            savedAt: item.snippet.publishedAt
+          });
+        }
+        
+        wlPageToken = wlResponse.data.nextPageToken;
+      } while (wlPageToken);
+      console.log(`[YouTube Sync] Total Watch Later items: ${wlCount}`);
+    } catch (err) {
+      console.error('[YouTube Sync] Error fetching Watch Later:', err.message);
+      // Don't fail entire sync if Watch Later fails - it might not exist for user
+      if (err.response?.status !== 404) {
+        await logSync('youtube', userId, 'failed', { 
+          error: `Watch Later fetch error: ${err.message}` 
+        });
+      }
+    }
     
     // Also get liked videos
     try {
@@ -210,12 +279,20 @@ async function fetchAllYouTubeContent(service, userId) {
       console.log(`[YouTube Sync] Total liked videos: ${likedCount}`);
     } catch (err) {
       console.error('[YouTube Sync] Error fetching liked videos:', err.message);
+      console.error('[YouTube Sync] Error details:', err.response?.data || err);
       await logSync('youtube', userId, 'failed', { 
-        error: `Liked videos fetch error: ${err.message}` 
+        error: `Liked videos fetch error: ${err.message}`,
+        errorDetails: err.response?.data,
+        errorCode: err.code
       });
     }
     
-    console.log(`[YouTube Sync] COMPLETE: Total items fetched: ${allContent.length} (${allContent.length - likedCount} from playlists, ${likedCount} liked videos)`);
+    // Calculate breakdown
+    const playlistItems = allContent.filter(c => c.savedIn !== 'Liked Videos' && c.savedIn !== 'Watch Later').length;
+    const watchLaterItems = allContent.filter(c => c.savedIn === 'Watch Later').length;
+    
+    console.log(`[YouTube Sync] COMPLETE: Total items fetched: ${allContent.length}`);
+    console.log(`[YouTube Sync] Breakdown: ${playlistItems} from playlists, ${watchLaterItems} from Watch Later, ${likedCount} liked videos`);
     
   } catch (error) {
     console.error('[YouTube Sync] Error fetching YouTube content:', error.message);
