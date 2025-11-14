@@ -183,5 +183,48 @@ router.get('/youtube/callback', async (req, res) => {
   }
 });
 
+// --- Facebook OAuth ---
+router.get('/facebook', (req, res) => {
+  const app_id = process.env.FACEBOOK_APP_ID || 
+    (typeof functions !== 'undefined' && functions.config().facebook?.app_id);
+  
+  if (!app_id) {
+    return sendError(res, 'Facebook OAuth app_id not configured');
+  }
+  
+  const oauthBase = getOAuthBase();
+  const redirect_uri = `${oauthBase}/auth/facebook/callback`;
+  const scope = encodeURIComponent('user_posts,user_photos,user_videos');
+  const url = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${app_id}&redirect_uri=${encodeURIComponent(redirect_uri)}&scope=${scope}&response_type=code`;
+  res.redirect(url);
+});
+
+router.get('/facebook/callback', async (req, res) => {
+  try {
+    const code = req.query.code;
+    const oauthBase = getOAuthBase();
+    const redirect_uri = `${oauthBase}/auth/facebook/callback`;
+    const app_id = process.env.FACEBOOK_APP_ID || 
+      (typeof functions !== 'undefined' && functions.config().facebook?.app_id);
+    const app_secret = process.env.FACEBOOK_APP_SECRET || 
+      (typeof functions !== 'undefined' && functions.config().facebook?.app_secret);
+    
+    if (!app_id || !app_secret) {
+      return sendError(res, 'Facebook OAuth credentials not configured');
+    }
+    
+    // Exchange code for access token
+    const tokenUrl = `https://graph.facebook.com/v18.0/oauth/access_token?client_id=${app_id}&client_secret=${app_secret}&redirect_uri=${encodeURIComponent(redirect_uri)}&code=${code}`;
+    const tokenResp = await axios.get(tokenUrl);
+    const tokens = tokenResp.data;
+    
+    const html = `<html><body><script>window.opener.postMessage({type:'smartfinder_tokens', provider:'facebook', tokens:${JSON.stringify(tokens)}}, '*');document.body.innerHTML='<h3>Facebook connected. Close this window.</h3>';</script></body></html>`;
+    res.send(html);
+  } catch (e) {
+    console.error('Facebook OAuth error:', e.response?.data || e.message);
+    res.status(500).send('Facebook OAuth error');
+  }
+});
+
 module.exports = { directOAuthRoutes: router };
 

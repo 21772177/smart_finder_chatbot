@@ -296,7 +296,7 @@ async function connectPlatform(platform) {
             })
           })
           .then(() => {
-            // Trigger auto-sync in background
+            // Trigger auto-sync in background (SILENT - no UI messages)
             if (tokens.access_token) {
               fetch('/api/sync', {
                 method: 'POST',
@@ -305,7 +305,15 @@ async function connectPlatform(platform) {
                   token: deviceToken,
                   platform: provider
                 })
-              }).catch(err => console.error('Sync error:', err));
+              })
+              .then(() => {
+                // Silent success - sync happens in background
+                console.log(`Background sync completed for ${provider}`);
+              })
+              .catch(err => {
+                // Silent error - log only, don't show to user
+                console.error('Background sync error:', err);
+              });
             }
           })
           .catch(err => console.error('Error saving token:', err));
@@ -314,7 +322,7 @@ async function connectPlatform(platform) {
         checkPlatformStatus();
         if (popup) popup.close();
         window.removeEventListener('message', handler);
-        append('Bot', `✅ ${provider} connected successfully! Your saved content is being indexed in the background.`, 'bot');
+        append('Bot', `✅ ${provider} connected successfully! Content is syncing in the background.`, 'bot');
       }
     });
   } catch (error) {
