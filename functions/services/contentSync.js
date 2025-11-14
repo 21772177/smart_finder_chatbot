@@ -47,15 +47,28 @@ async function syncAllPlatformContent(userId, platform, accessToken) {
     
     console.log(`[Background Sync] Fetched ${allContent.length} items from ${platform} for user ${userId}`);
     
+    // Log what was fetched (for debugging)
+    if (allContent.length === 0) {
+      console.log(`[Background Sync] WARNING: No content fetched from ${platform}. User may have no saved content, or API call failed.`);
+      await logSync(platform, userId, 'completed', {
+        itemsFetched: 0,
+        itemsIndexed: 0,
+        warning: 'No content found - user may have no saved content on this platform'
+      });
+    }
+    
     // Index all content in Firestore with embeddings
     const syncResult = await syncPlatformContent(userId, platform, allContent);
     
     console.log(`[Background Sync] Indexed ${syncResult.indexed} items from ${platform} for user ${userId}`);
+    console.log(`[Background Sync] Summary: Fetched ${allContent.length} items, Indexed ${syncResult.indexed} items`);
     
-    // Log sync completion
+    // Log sync completion with detailed info
     await logSync(platform, userId, 'completed', {
       itemsFetched: allContent.length,
-      itemsIndexed: syncResult.indexed || 0
+      itemsIndexed: syncResult.indexed || 0,
+      fetchSuccess: allContent.length > 0,
+      indexSuccess: syncResult.success !== false
     });
     
     return {
@@ -87,16 +100,19 @@ async function fetchAllYouTubeContent(service, userId) {
   
   try {
     if (!service.accessToken) {
-      console.warn('No YouTube access token, cannot fetch saved content');
+      console.warn('[YouTube Sync] No YouTube access token, cannot fetch saved content');
+      await logSync('youtube', userId, 'failed', { error: 'No access token' });
       return [];
     }
     
+    console.log(`[YouTube Sync] Starting fetch for user ${userId}`);
     const { google } = require('googleapis');
     const oauth2Client = new google.auth.OAuth2();
     oauth2Client.setCredentials({ access_token: service.accessToken });
     const youtube = google.youtube({ version: 'v3', auth: oauth2Client });
     
     // Get all playlists (saved videos)
+    let playlistCount = 0;
     let nextPageToken = null;
     do {
       const playlistsResponse = await youtube.playlists.list({
@@ -107,6 +123,8 @@ async function fetchAllYouTubeContent(service, userId) {
       });
       
       const playlists = playlistsResponse.data.items || [];
+      playlistCount += playlists.length;
+      console.log(`[YouTube Sync] Found ${playlists.length} playlists (total so far: ${playlistCount})`);
       
       // For each playlist, get all items
       for (const playlist of playlists) {
@@ -139,8 +157,13 @@ async function fetchAllYouTubeContent(service, userId) {
             }
             
             itemsPageToken = itemsResponse.data.nextPageToken;
+            console.log(`[YouTube Sync] Fetched ${items.length} items from playlist "${playlist.snippet.title}"`);
           } catch (err) {
-            console.error(`Error fetching playlist items for ${playlist.id}:`, err);
+            console.error(`[YouTube Sync] Error fetching playlist items for ${playlist.id}:`, err.message);
+            await logSync('youtube', userId, 'failed', { 
+              error: `Playlist fetch error: ${err.message}`,
+              playlistId: playlist.id 
+            });
             break;
           }
         } while (itemsPageToken);
@@ -149,8 +172,11 @@ async function fetchAllYouTubeContent(service, userId) {
       nextPageToken = playlistsResponse.data.nextPageToken;
     } while (nextPageToken);
     
+    console.log(`[YouTube Sync] Total playlists processed: ${playlistCount}, Total items from playlists: ${allContent.length}`);
+    
     // Also get liked videos
     try {
+      let likedCount = 0;
       let likedPageToken = null;
       do {
         const likedResponse = await youtube.videos.list({
@@ -161,6 +187,8 @@ async function fetchAllYouTubeContent(service, userId) {
         });
         
         const likedVideos = likedResponse.data.items || [];
+        likedCount += likedVideos.length;
+        console.log(`[YouTube Sync] Fetched ${likedVideos.length} liked videos (total so far: ${likedCount})`);
         for (const video of likedVideos) {
           allContent.push({
             platform: 'YouTube',
@@ -179,12 +207,22 @@ async function fetchAllYouTubeContent(service, userId) {
         
         likedPageToken = likedResponse.data.nextPageToken;
       } while (likedPageToken);
+      console.log(`[YouTube Sync] Total liked videos: ${likedCount}`);
     } catch (err) {
-      console.error('Error fetching liked videos:', err);
+      console.error('[YouTube Sync] Error fetching liked videos:', err.message);
+      await logSync('youtube', userId, 'failed', { 
+        error: `Liked videos fetch error: ${err.message}` 
+      });
     }
     
+    console.log(`[YouTube Sync] COMPLETE: Total items fetched: ${allContent.length} (${allContent.length - likedCount} from playlists, ${likedCount} liked videos)`);
+    
   } catch (error) {
-    console.error('Error fetching YouTube content:', error);
+    console.error('[YouTube Sync] Error fetching YouTube content:', error.message);
+    await logSync('youtube', userId, 'failed', { 
+      error: `Fetch error: ${error.message}`,
+      stack: error.stack 
+    });
   }
   
   return allContent;
