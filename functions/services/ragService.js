@@ -73,18 +73,25 @@ async function searchContent(query, userId, platforms = [], limit = 20) {
       queryRef = queryRef.where('platform', 'in', platforms);
     }
 
+    // Get more results to sort in memory (avoids index requirement)
     const snapshot = await queryRef
-      .orderBy('timestamp', 'desc')
-      .limit(100) // Get more for similarity calculation
+      .limit(500) // Get more for similarity calculation and sorting
       .get();
 
     if (snapshot.empty) {
       return [];
     }
 
+    // Sort by timestamp in memory (descending) before processing
+    const sortedDocs = snapshot.docs.sort((a, b) => {
+      const timeA = a.data().timestamp?.seconds || a.data().timestamp?._seconds || 0;
+      const timeB = b.data().timestamp?.seconds || b.data().timestamp?._seconds || 0;
+      return timeB - timeA; // Descending
+    });
+
     const results = [];
 
-    for (const doc of snapshot.docs) {
+    for (const doc of sortedDocs) {
       const data = doc.data();
       let score = 0;
 

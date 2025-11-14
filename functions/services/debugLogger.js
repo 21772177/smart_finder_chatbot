@@ -105,37 +105,58 @@ async function logAPI(platform, endpoint, method, status, details = {}) {
 
 /**
  * Get recent logs for a user
+ * Uses simple query to avoid index requirements
  */
 async function getRecentLogs(userId, limit = 50) {
   try {
     const db = getDb();
+    // Query only by userId, then sort in memory to avoid index requirement
     const snapshot = await db.collection('debug_logs')
       .where('userId', '==', userId)
-      .orderBy('timestamp', 'desc')
-      .limit(limit)
+      .limit(limit * 2) // Get more to sort, then limit
       .get();
     
-    return snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    if (snapshot.empty) {
+      return [];
+    }
+    
+    // Sort by timestamp in memory (descending)
+    const logs = snapshot.docs
+      .map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }))
+      .sort((a, b) => {
+        const timeA = a.timestamp?.seconds || a.timestamp?._seconds || 0;
+        const timeB = b.timestamp?.seconds || b.timestamp?._seconds || 0;
+        return timeB - timeA; // Descending
+      })
+      .slice(0, limit);
+    
+    return logs;
   } catch (error) {
     console.error('Error getting recent logs:', error);
+    // If index error, return empty array instead of failing
+    if (error.code === 9 || error.message?.includes('index')) {
+      console.warn('Firestore index not created yet. Returning empty logs.');
+      return [];
+    }
     return [];
   }
 }
 
 /**
  * Get sync status for a user
+ * Uses simple query to avoid index requirements
  */
 async function getSyncStatus(userId) {
   try {
     const db = getDb();
-    const syncLogs = await db.collection('debug_logs')
+    // Query only by userId and category, then sort in memory
+    const snapshot = await db.collection('debug_logs')
       .where('userId', '==', userId)
       .where('category', '==', 'sync')
-      .orderBy('timestamp', 'desc')
-      .limit(10)
+      .limit(50) // Get more to sort, then take latest
       .get();
     
     const status = {
@@ -144,8 +165,21 @@ async function getSyncStatus(userId) {
       facebook: { status: 'unknown', lastSync: null, itemsIndexed: 0 }
     };
     
-    syncLogs.docs.forEach(doc => {
-      const data = doc.data();
+    if (snapshot.empty) {
+      return status;
+    }
+    
+    // Sort by timestamp in memory (descending) and take latest 10
+    const syncLogs = snapshot.docs
+      .map(doc => doc.data())
+      .sort((a, b) => {
+        const timeA = a.timestamp?.seconds || a.timestamp?._seconds || 0;
+        const timeB = b.timestamp?.seconds || b.timestamp?._seconds || 0;
+        return timeB - timeA; // Descending
+      })
+      .slice(0, 10);
+    
+    syncLogs.forEach(data => {
       const platform = data.data?.platform;
       if (platform && status[platform]) {
         status[platform].status = data.data?.status || 'unknown';
@@ -157,33 +191,67 @@ async function getSyncStatus(userId) {
     return status;
   } catch (error) {
     console.error('Error getting sync status:', error);
+    // If index error, return default status instead of failing
+    if (error.code === 9 || error.message?.includes('index')) {
+      console.warn('Firestore index not created yet. Returning default status.');
+      return {
+        youtube: { status: 'unknown', lastSync: null, itemsIndexed: 0 },
+        instagram: { status: 'unknown', lastSync: null, itemsIndexed: 0 },
+        facebook: { status: 'unknown', lastSync: null, itemsIndexed: 0 }
+      };
+    }
     return null;
   }
 }
 
 /**
  * Get error summary for a user
+ * Uses simple query to avoid index requirements
  */
 async function getErrorSummary(userId, hours = 24) {
   try {
     const db = getDb();
     const cutoffTime = new Date();
     cutoffTime.setHours(cutoffTime.getHours() - hours);
+    const cutoffTimestamp = admin.firestore.Timestamp.fromDate(cutoffTime);
     
-    const errorLogs = await db.collection('debug_logs')
+    // Query only by userId and category, then filter by time in memory
+    const snapshot = await db.collection('debug_logs')
       .where('userId', '==', userId)
       .where('category', '==', 'error')
-      .where('timestamp', '>=', admin.firestore.Timestamp.fromDate(cutoffTime))
-      .orderBy('timestamp', 'desc')
-      .limit(100)
+      .limit(200) // Get more to filter, then limit
       .get();
     
-    return errorLogs.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    if (snapshot.empty) {
+      return [];
+    }
+    
+    // Filter by time and sort in memory
+    const errorLogs = snapshot.docs
+      .map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }))
+      .filter(log => {
+        const logTime = log.timestamp?.seconds || log.timestamp?._seconds || 0;
+        const cutoffSeconds = cutoffTimestamp.seconds || 0;
+        return logTime >= cutoffSeconds;
+      })
+      .sort((a, b) => {
+        const timeA = a.timestamp?.seconds || a.timestamp?._seconds || 0;
+        const timeB = b.timestamp?.seconds || b.timestamp?._seconds || 0;
+        return timeB - timeA; // Descending
+      })
+      .slice(0, 100);
+    
+    return errorLogs;
   } catch (error) {
     console.error('Error getting error summary:', error);
+    // If index error, return empty array instead of failing
+    if (error.code === 9 || error.message?.includes('index')) {
+      console.warn('Firestore index not created yet. Returning empty errors.');
+      return [];
+    }
     return [];
   }
 }
