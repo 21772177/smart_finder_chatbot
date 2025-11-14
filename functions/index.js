@@ -10,6 +10,7 @@ const { AgenticRouter } = require('./services/agenticRouter');
 const { indexContent, syncPlatformContent } = require('./services/ragService');
 const { getOrCreateUser, getUserTokensByIdentifier, linkPlatformToken, getConnectedPlatforms, recordUnifiedConsent } = require('./services/unifiedAuth');
 const { syncAllPlatformContent } = require('./services/contentSync');
+const { logQuery, logOAuth, logError, getRecentLogs, getSyncStatus, getErrorSummary } = require('./services/debugLogger');
 const { directOAuthRoutes } = require('./services/directOAuth');
 
 admin.initializeApp();
@@ -121,6 +122,15 @@ app.post('/api/query', async (req, res) => {
     console.log(`[Query Debug] User: ${userIdentifier}, Query: "${queryText}"`);
     console.log(`[Query Debug] Intent: ${intent}, Platforms: ${JSON.stringify(intentResult.platforms || [])}, Keywords: ${JSON.stringify(intentResult.keywords || [])}`);
     console.log(`[Query Debug] User tokens - YouTube: ${!!userTokens.youtube}, Instagram: ${!!userTokens.instagram}, Facebook: ${!!userTokens.facebook}`);
+    
+    // Log query to debug system
+    await logQuery(userIdentifier, queryText, intent, 0, {
+      platforms: intentResult.platforms || [],
+      keywords: intentResult.keywords || [],
+      hasYouTubeToken: !!userTokens.youtube,
+      hasInstagramToken: !!userTokens.instagram,
+      hasFacebookToken: !!userTokens.facebook
+    });
 
     let results = [];
     let responseText = '';
@@ -153,6 +163,13 @@ app.post('/api/query', async (req, res) => {
       results = searchResults.results || [];
       
       console.log(`[Query Debug] Search completed - Found ${results.length} results (${searchResults.fromCache || 0} from cache, ${searchResults.fromAPI || 0} from API)`);
+      
+      // Log query results to debug system
+      await logQuery(userIdentifier, queryText, intent, results.length, {
+        fromCache: searchResults.fromCache || 0,
+        fromAPI: searchResults.fromAPI || 0,
+        platformsSearched: intentResult.platforms || []
+      });
       
       // Log cache hit rate for monitoring
       if (searchResults.fromCache > 0) {
@@ -229,6 +246,8 @@ app.post('/api/query', async (req, res) => {
 
   } catch (error) {
     console.error('Error processing query:', error);
+    const userIdentifier = req.body.token || getDeviceToken(req);
+    await logError(error, { endpoint: '/api/query', query: req.body.query || req.body.text }, userIdentifier);
     res.status(500).json({ error: 'Internal server error', message: error.message });
   }
 });
@@ -265,7 +284,9 @@ app.post('/api/sync', async (req, res) => {
       platform: platform,
       itemsFetched: syncResult.itemsFetched || 0,
       itemsIndexed: syncResult.itemsIndexed || 0,
-      message: syncResult.message || `Synced ${syncResult.itemsIndexed} items from ${platform}`
+      message: syncResult.message || `Synced ${syncResult.itemsIndexed} items from ${platform}`,
+      syncedAt: syncResult.syncedAt || new Date().toISOString(),
+      ready: syncResult.success && syncResult.itemsIndexed > 0 // Ready to search
     });
 
   } catch (error) {
@@ -299,13 +320,17 @@ app.post('/api/sync-all', async (req, res) => {
 
     const totalFetched = results.reduce((sum, r) => sum + (r.itemsFetched || 0), 0);
     const totalIndexed = results.reduce((sum, r) => sum + (r.itemsIndexed || 0), 0);
+    
+    const allReady = results.every(r => r.success && r.itemsIndexed > 0);
 
     res.json({
       success: true,
       message: `Synced ${totalIndexed} items from ${results.length} platform(s)`,
       results: results,
       totalFetched: totalFetched,
-      totalIndexed: totalIndexed
+      totalIndexed: totalIndexed,
+      ready: allReady, // All platforms ready to search
+      syncedAt: new Date().toISOString()
     });
 
   } catch (error) {
@@ -468,6 +493,71 @@ async function recallLastVisit(token, location) {
     location: location
   };
 }
+
+/**
+ * Debug endpoint - Get logs for testing
+ */
+app.get('/api/debug/logs', async (req, res) => {
+  try {
+    const { token, limit = 50 } = req.query;
+    const userIdentifier = token || 'anonymous';
+    
+    const logs = await getRecentLogs(userIdentifier, parseInt(limit));
+    
+    res.json({
+      success: true,
+      userId: userIdentifier,
+      logs: logs,
+      count: logs.length
+    });
+  } catch (error) {
+    console.error('Debug logs error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * Debug endpoint - Get sync status
+ */
+app.get('/api/debug/sync-status', async (req, res) => {
+  try {
+    const { token } = req.query;
+    const userIdentifier = token || 'anonymous';
+    
+    const status = await getSyncStatus(userIdentifier);
+    
+    res.json({
+      success: true,
+      userId: userIdentifier,
+      syncStatus: status
+    });
+  } catch (error) {
+    console.error('Debug sync status error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * Debug endpoint - Get error summary
+ */
+app.get('/api/debug/errors', async (req, res) => {
+  try {
+    const { token, hours = 24 } = req.query;
+    const userIdentifier = token || 'anonymous';
+    
+    const errors = await getErrorSummary(userIdentifier, parseInt(hours));
+    
+    res.json({
+      success: true,
+      userId: userIdentifier,
+      errors: errors,
+      count: errors.length
+    });
+  } catch (error) {
+    console.error('Debug errors error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 /**
  * Debug endpoint - Check sync status and content index

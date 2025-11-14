@@ -11,9 +11,12 @@ const { syncPlatformContent, indexContent } = require('./ragService');
  * Sync all saved content from a platform
  * Fetches everything and indexes it in Firestore
  */
+const { logSync, logError } = require('./debugLogger');
+
 async function syncAllPlatformContent(userId, platform, accessToken) {
   try {
     console.log(`[Background Sync] Starting full sync for ${platform} for user ${userId}`);
+    await logSync(platform, userId, 'started', { accessTokenPresent: !!accessToken });
     
     let allContent = [];
     let service;
@@ -49,16 +52,25 @@ async function syncAllPlatformContent(userId, platform, accessToken) {
     
     console.log(`[Background Sync] Indexed ${syncResult.indexed} items from ${platform} for user ${userId}`);
     
+    // Log sync completion
+    await logSync(platform, userId, 'completed', {
+      itemsFetched: allContent.length,
+      itemsIndexed: syncResult.indexed || 0
+    });
+    
     return {
       success: true,
       platform: platform,
       itemsFetched: allContent.length,
       itemsIndexed: syncResult.indexed || 0,
-      message: `Synced ${syncResult.indexed} items from ${platform}`
+      message: `Synced ${syncResult.indexed} items from ${platform}`,
+      syncedAt: new Date().toISOString()
     };
     
   } catch (error) {
     console.error(`Error syncing ${platform}:`, error);
+    await logError(error, { platform, userId }, userId);
+    await logSync(platform, userId, 'failed', { error: error.message });
     return {
       success: false,
       platform: platform,

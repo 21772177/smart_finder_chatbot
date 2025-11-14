@@ -20,6 +20,12 @@
     /* Auth Modal */
     #authModal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000}
     #authContent{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;padding:24px;border-radius:12px;max-width:400px;width:90%}
+    
+    /* Debug Panel */
+    #debugPanel{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1001}
+    #debugContent{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;padding:24px;border-radius:12px;max-width:800px;width:90%;max-height:80vh;overflow:auto}
+    .debugSection{margin:16px 0;padding:12px;background:#f5f5f5;border-radius:6px}
+    .debugLog{font-family:monospace;font-size:11px;padding:8px;background:#1e1e1e;color:#d4d4d4;border-radius:4px;max-height:200px;overflow:auto;margin-top:8px}
     .closeBtn{float:right;background:none;border:none;font-size:24px;cursor:pointer;color:#999}
     .authInput{margin:12px 0;width:100%;padding:10px;border:1px solid #ddd;border-radius:6px}
     .authBtn{width:100%;padding:12px;margin:8px 0;border-radius:6px;border:none;cursor:pointer;font-weight:600}
@@ -44,10 +50,37 @@
       <div id="platformStatus" style="margin-top:8px;font-size:12px;"></div>
     </div>
     
+    <!-- Debug Panel -->
+    <div id="debugPanel">
+      <div id="debugContent">
+        <h3>🔍 Debug Panel - Testing Phase</h3>
+        <button onclick="closeDebugPanel()" class="closeBtn">×</button>
+        
+        <div class="debugSection">
+          <h4>Sync Status</h4>
+          <div id="debugSyncStatus">Loading...</div>
+          <button onclick="refreshDebugStatus()" style="margin-top:8px;padding:6px 12px;background:#0b5cff;color:#fff;border:none;border-radius:4px;cursor:pointer">Refresh</button>
+        </div>
+        
+        <div class="debugSection">
+          <h4>Recent Logs</h4>
+          <div id="debugLogs" class="debugLog">Loading...</div>
+          <button onclick="refreshDebugLogs()" style="margin-top:8px;padding:6px 12px;background:#0b5cff;color:#fff;border:none;border-radius:4px;cursor:pointer">Refresh Logs</button>
+        </div>
+        
+        <div class="debugSection">
+          <h4>Errors (Last 24h)</h4>
+          <div id="debugErrors" class="debugLog">Loading...</div>
+          <button onclick="refreshDebugErrors()" style="margin-top:8px;padding:6px 12px;background:#0b5cff;color:#fff;border:none;border-radius:4px;cursor:pointer">Refresh Errors</button>
+        </div>
+      </div>
+    </div>
+    
     <div id="chat"></div>
     <div id="inputRow">
       <input id="q" placeholder="Try: 'Find Goa travel reels I saved' or 'Show me cooking videos from YouTube'" onkeypress="if(event.key==='Enter') document.getElementById('send').click()" />
       <button id="send">Send</button>
+      <button onclick="showDebugPanel()" style="margin-left:8px;padding:8px 12px;font-size:12px;background:#666;color:#fff;border:none;border-radius:4px;cursor:pointer">🔍 Debug</button>
     </div>
     <div style="margin-top:12px;font-size:11px;color:#999;text-align:center;">
       <small>💡 <a href="#" onclick="showAuthModal();return false;" style="color:#0b5cff;text-decoration:none;">Connect your accounts</a> to search your saved content</small>
@@ -268,6 +301,101 @@ function closeAuthModal() {
   document.getElementById('authModal').style.display = 'none';
 }
 
+// Debug Panel Functions
+function showDebugPanel() {
+  document.getElementById('debugPanel').style.display = 'block';
+  refreshDebugStatus();
+  refreshDebugLogs();
+  refreshDebugErrors();
+}
+
+function closeDebugPanel() {
+  document.getElementById('debugPanel').style.display = 'none';
+}
+
+async function refreshDebugStatus() {
+  if (!deviceToken) {
+    document.getElementById('debugSyncStatus').textContent = 'No device token found';
+    return;
+  }
+  
+  try {
+    const response = await fetch(`/api/debug/sync-status?token=${encodeURIComponent(deviceToken)}`);
+    const data = await response.json();
+    
+    if (data.success && data.syncStatus) {
+      let html = '<table style="width:100%;font-size:12px"><tr><th>Platform</th><th>Status</th><th>Items</th><th>Last Sync</th></tr>';
+      Object.entries(data.syncStatus).forEach(([platform, status]) => {
+        const statusColor = status.status === 'completed' ? '#28a745' : status.status === 'failed' ? '#dc3545' : '#ffc107';
+        html += `<tr>
+          <td><strong>${platform}</strong></td>
+          <td style="color:${statusColor}">${status.status}</td>
+          <td>${status.itemsIndexed || 0}</td>
+          <td>${status.lastSync ? new Date(status.lastSync.seconds * 1000).toLocaleString() : 'Never'}</td>
+        </tr>`;
+      });
+      html += '</table>';
+      document.getElementById('debugSyncStatus').innerHTML = html;
+    } else {
+      document.getElementById('debugSyncStatus').textContent = 'No sync status available';
+    }
+  } catch (err) {
+    document.getElementById('debugSyncStatus').textContent = 'Error: ' + err.message;
+  }
+}
+
+async function refreshDebugLogs() {
+  if (!deviceToken) {
+    document.getElementById('debugLogs').textContent = 'No device token found';
+    return;
+  }
+  
+  try {
+    const response = await fetch(`/api/debug/logs?token=${encodeURIComponent(deviceToken)}&limit=20`);
+    const data = await response.json();
+    
+    if (data.success && data.logs) {
+      const logsHtml = data.logs.map(log => {
+        const time = log.timestamp ? new Date(log.timestamp.seconds * 1000).toLocaleString() : 'Unknown';
+        return `[${time}] [${log.category}] ${log.message}\n${JSON.stringify(log.data, null, 2)}`;
+      }).join('\n\n');
+      document.getElementById('debugLogs').textContent = logsHtml || 'No logs found';
+    } else {
+      document.getElementById('debugLogs').textContent = 'No logs available';
+    }
+  } catch (err) {
+    document.getElementById('debugLogs').textContent = 'Error: ' + err.message;
+  }
+}
+
+async function refreshDebugErrors() {
+  if (!deviceToken) {
+    document.getElementById('debugErrors').textContent = 'No device token found';
+    return;
+  }
+  
+  try {
+    const response = await fetch(`/api/debug/errors?token=${encodeURIComponent(deviceToken)}&hours=24`);
+    const data = await response.json();
+    
+    if (data.success && data.errors) {
+      if (data.errors.length === 0) {
+        document.getElementById('debugErrors').textContent = '✅ No errors in last 24 hours!';
+      } else {
+        const errorsHtml = data.errors.map(err => {
+          const time = err.timestamp ? new Date(err.timestamp.seconds * 1000).toLocaleString() : 'Unknown';
+          return `[${time}] ${err.message}\n${JSON.stringify(err.data, null, 2)}`;
+        }).join('\n\n');
+        document.getElementById('debugErrors').textContent = errorsHtml;
+      }
+    } else {
+      document.getElementById('debugErrors').textContent = 'No error data available';
+    }
+  } catch (err) {
+    document.getElementById('debugErrors').textContent = 'Error: ' + err.message;
+  }
+}
+
 
 // Using simple direct OAuth routes (Gemini v2 approach) - no PKCE needed
 
@@ -310,9 +438,20 @@ async function connectPlatform(platform) {
                   platform: provider
                 })
               })
-              .then(() => {
-                // Silent success - sync happens in background
-                console.log(`Background sync completed for ${provider}`);
+              .then(async (syncResponse) => {
+                const syncData = await syncResponse.json();
+                console.log(`Background sync completed for ${provider}:`, syncData);
+                
+                // Check if sync completed successfully
+                if (syncData.success && syncData.ready) {
+                  // Show completion message
+                  append('Bot', `✅ ${provider} sync complete! ${syncData.itemsIndexed} items indexed. All ready to start search!`, 'bot');
+                } else if (syncData.success) {
+                  append('Bot', `✅ ${provider} sync complete! ${syncData.itemsIndexed} items indexed.`, 'bot');
+                }
+                
+                // Poll for sync status to show final ready message
+                checkSyncCompletion(deviceToken, provider);
               })
               .catch(err => {
                 // Silent error - log only, don't show to user
@@ -332,6 +471,60 @@ async function connectPlatform(platform) {
   } catch (error) {
     alert('Error connecting ' + platform + ': ' + error.message);
     console.error('OAuth error:', error);
+  }
+}
+
+// Poll for sync completion
+async function checkSyncCompletion(token, platform) {
+  if (!token) return;
+  
+  let attempts = 0;
+  const maxAttempts = 30; // 30 seconds max wait
+  
+  const pollInterval = setInterval(async () => {
+    attempts++;
+    
+    try {
+      const response = await fetch(`/api/debug/sync-status?token=${encodeURIComponent(token)}`);
+      const data = await response.json();
+      
+      if (data.success && data.syncStatus) {
+        const platformStatus = data.syncStatus[platform];
+        if (platformStatus && platformStatus.status === 'completed') {
+          clearInterval(pollInterval);
+          // Already showed message in sync response, but verify
+          return;
+        }
+      }
+      
+      if (attempts >= maxAttempts) {
+        clearInterval(pollInterval);
+      }
+    } catch (err) {
+      console.error('Error checking sync status:', err);
+      if (attempts >= maxAttempts) {
+        clearInterval(pollInterval);
+      }
+    }
+  }, 1000); // Check every second
+}
+
+// Check if all platforms are ready
+async function checkAllPlatformsReady() {
+  if (!deviceToken) return;
+  
+  try {
+    const response = await fetch(`/api/debug/sync-status?token=${encodeURIComponent(deviceToken)}`);
+    const data = await response.json();
+    
+    if (data.success && data.syncStatus) {
+      const allReady = Object.values(data.syncStatus).every(s => s.status === 'completed' && s.itemsIndexed > 0);
+      if (allReady) {
+        append('Bot', '✅ All platforms synced! All ready to start search!', 'bot');
+      }
+    }
+  } catch (err) {
+    console.error('Error checking all platforms ready:', err);
   }
 }
 
