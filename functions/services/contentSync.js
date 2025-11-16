@@ -24,9 +24,14 @@ async function syncAllPlatformContent(userId, platform, accessToken) {
     // Initialize platform service
     switch (platform) {
       case 'youtube':
+        console.log(`[Background Sync] Initializing YouTubeService for user ${userId}`);
+        console.log(`[Background Sync] Access token provided: ${!!accessToken}, length: ${accessToken?.length || 0}`);
         service = new YouTubeService(null, accessToken);
+        console.log(`[Background Sync] YouTubeService created, accessToken: ${service?.accessToken ? 'present' : 'MISSING'}`);
         // Fetch all saved videos from playlists
+        console.log(`[Background Sync] Calling fetchAllYouTubeContent...`);
         allContent = await fetchAllYouTubeContent(service, userId);
+        console.log(`[Background Sync] fetchAllYouTubeContent returned ${allContent.length} items`);
         break;
         
       case 'instagram':
@@ -105,17 +110,24 @@ async function syncAllPlatformContent(userId, platform, accessToken) {
  * Fetch ALL YouTube saved content
  */
 async function fetchAllYouTubeContent(service, userId) {
+  console.log(`[YouTube Sync] ========== FETCH START ==========`);
+  console.log(`[YouTube Sync] Function called for user: ${userId}`);
+  console.log(`[YouTube Sync] Service object: ${service ? 'present' : 'missing'}`);
+  console.log(`[YouTube Sync] Service.accessToken: ${service?.accessToken ? 'present' : 'MISSING'}`);
+  console.log(`[YouTube Sync] Access token length: ${service?.accessToken?.length || 0}`);
+  
   const allContent = [];
   
   try {
-    if (!service.accessToken) {
-      console.warn('[YouTube Sync] No YouTube access token, cannot fetch saved content');
-      await logSync('youtube', userId, 'failed', { error: 'No access token' });
+    if (!service || !service.accessToken) {
+      const errorMsg = `[YouTube Sync] ❌ No YouTube access token, cannot fetch saved content. Service: ${!!service}, Token: ${!!service?.accessToken}`;
+      console.warn(errorMsg);
+      await logSync('youtube', userId, 'failed', { error: 'No access token', servicePresent: !!service });
       return [];
     }
     
+    console.log(`[YouTube Sync] ✅ Access token validated, proceeding with fetch`);
     console.log(`[YouTube Sync] Starting fetch for user ${userId}`);
-    console.log(`[YouTube Sync] Access token present: ${!!service.accessToken}, length: ${service.accessToken?.length || 0}`);
     
     const { google } = require('googleapis');
     const oauth2Client = new google.auth.OAuth2();
@@ -339,13 +351,21 @@ async function fetchAllYouTubeContent(service, userId) {
     console.log(`[YouTube Sync] 📊 All content array length: ${allContent.length}, Liked count variable: ${likedCount}`);
     
   } catch (error) {
+    console.error('[YouTube Sync] ❌ ========== FETCH ERROR ==========');
     console.error('[YouTube Sync] Error fetching YouTube content:', error.message);
+    console.error('[YouTube Sync] Error stack:', error.stack);
+    console.error('[YouTube Sync] Error name:', error.name);
+    console.error('[YouTube Sync] Error code:', error.code);
     await logSync('youtube', userId, 'failed', { 
       error: `Fetch error: ${error.message}`,
-      stack: error.stack 
+      stack: error.stack,
+      errorName: error.name,
+      errorCode: error.code
     });
   }
   
+  console.log(`[YouTube Sync] ========== FETCH END ==========`);
+  console.log(`[YouTube Sync] Returning ${allContent.length} items`);
   return allContent;
 }
 
