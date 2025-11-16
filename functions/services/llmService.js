@@ -74,6 +74,8 @@ async function parseIntentWithLLM(query) {
 - saved_content: User wants to search saved videos/reels/content from social media platforms (YouTube, Instagram, Facebook, etc.). This includes queries like "show me reels", "find saved videos", "goa reels", "liked videos", "saved content", etc.
 - reel_search: User wants to search for reels (Instagram reels, YouTube Shorts, etc.)
 - video_search: User wants to search for videos (YouTube videos, etc.)
+- product_search: User wants to search for products to buy (e.g., "find phone", "buy laptop", "search for shoes", "where to buy", "best price for")
+- vision_search: User wants to analyze an image or extract information from an image (e.g., "what's in this image", "read text from image", "identify this", "analyze image")
 - nearby_restaurant: User wants to find nearby restaurants or places
 - recall: User wants to recall past visits or location history
 - general: General conversation or unclear intent
