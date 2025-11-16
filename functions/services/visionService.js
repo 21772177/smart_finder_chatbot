@@ -8,9 +8,12 @@ const functions = require('firebase-functions');
 
 class VisionService {
   constructor() {
+    // Try Vision-specific key first, then fallback to Google Maps key (same project, might work)
     this.apiKey = process.env.GOOGLE_VISION_KEY || 
       process.env.GOOGLE_VISION_API_KEY ||
-      (typeof functions !== 'undefined' && functions.config().vision?.key);
+      (typeof functions !== 'undefined' && functions.config().vision?.key) ||
+      // Fallback: Try using Google Maps API key (if Vision API is enabled in same project)
+      (typeof functions !== 'undefined' && functions.config().google?.maps_key);
   }
 
   /**
