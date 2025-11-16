@@ -12,6 +12,8 @@ const { getOrCreateUser, getUserTokensByIdentifier, linkPlatformToken, getConnec
 const { syncAllPlatformContent } = require('./services/contentSync');
 const { logQuery, logOAuth, logError, getRecentLogs, getSyncStatus, getErrorSummary } = require('./services/debugLogger');
 const { directOAuthRoutes } = require('./services/directOAuth');
+const { ProductSearchService } = require('./services/productSearchService');
+const { VisionService } = require('./services/visionService');
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -204,6 +206,76 @@ app.post('/api/query', async (req, res) => {
       
       // Combine results with auth messages
       results = [...publicResults, ...authRequired];
+      
+    } else if (intent === 'product_search') {
+      // Product search across multiple e-commerce platforms
+      console.log(`[Query] Product search for: "${queryText}"`);
+      const productService = new ProductSearchService();
+      const productResults = await productService.searchProducts(queryText, 20);
+      const verifiedProducts = productService.verifyListings(productResults);
+      
+      results = verifiedProducts.map(product => ({
+        platform: product.platform,
+        title: product.title,
+        price: product.price ? `${product.currency} ${product.price}` : 'Price not available',
+        availability: product.availability_label,
+        shipping: `${product.shipping_days} days`,
+        link: product.link,
+        score: product.score,
+        type: 'product'
+      }));
+      
+      responseText = await generateResponse(queryText, results);
+      if (results.length === 0) {
+        responseText = `I couldn't find any products matching "${queryText}". Try searching with different keywords or check if product search APIs are configured.`;
+      }
+      
+      await logQuery(userIdentifier, queryText, intent, results.length, {
+        platforms: verifiedProducts.map(p => p.platform)
+      });
+      
+    } else if (intent === 'vision_search') {
+      // Image analysis using Google Vision API
+      console.log(`[Query] Vision search requested`);
+      const imageBase64 = req.body.image || req.body.image_base64;
+      
+      if (!imageBase64) {
+        responseText = 'Please provide an image to analyze. Send the image as base64 encoded data in the "image" or "image_base64" field.';
+        return res.json({
+          success: false,
+          response: responseText,
+          results: []
+        });
+      }
+      
+      const visionService = new VisionService();
+      const visionResult = await visionService.analyzeImage(imageBase64);
+      
+      if (visionResult.error && !visionResult.mock) {
+        responseText = `Error analyzing image: ${visionResult.error}`;
+      } else if (visionResult.mock) {
+        responseText = 'Vision API is not configured. Please set GOOGLE_VISION_KEY in Firebase Functions config.';
+      } else {
+        const labelsText = visionResult.labels.length > 0 
+          ? `Detected: ${visionResult.labels.join(', ')}`
+          : 'No labels detected';
+        const ocrText = visionResult.ocr 
+          ? `\n\nText found: ${visionResult.ocr}`
+          : '';
+        responseText = `${labelsText}${ocrText}`;
+        
+        results = [{
+          type: 'vision',
+          labels: visionResult.labels,
+          ocr: visionResult.ocr,
+          platform: 'Google Vision API'
+        }];
+      }
+      
+      await logQuery(userIdentifier, queryText, intent, results.length, {
+        labelsCount: visionResult.labels?.length || 0,
+        hasOcr: !!visionResult.ocr
+      });
       
     } else if (intent === 'nearby_restaurant' || intent === 'nearby_search') {
       // Call Google Places Nearby Search
