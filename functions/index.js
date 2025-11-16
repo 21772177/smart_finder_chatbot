@@ -460,17 +460,25 @@ app.post('/api/auth/connect', async (req, res) => {
  */
 app.post('/api/auth/save-tokens', async (req, res) => {
   try {
-    const { userId, email, mobile, platform, token, platformUserId } = req.body;
+    const { userId, email, mobile, platform, token, accessToken, platformUserId } = req.body;
 
     // Use email/mobile as identifier if provided
     const identifier = email || mobile || userId;
     
-    if (!identifier || !platform || !token) {
-      return res.status(400).json({ error: 'userId/email/mobile, platform, and token are required' });
+    // Support both 'token' and 'accessToken' parameter names
+    const oauthToken = accessToken || token;
+    
+    if (!identifier || !platform || !oauthToken) {
+      console.error('[Save Tokens] Missing required fields:', { identifier: !!identifier, platform, oauthToken: !!oauthToken });
+      return res.status(400).json({ error: 'userId/email/mobile, platform, and token/accessToken are required' });
     }
 
+    console.log(`[Save Tokens] Saving token for platform: ${platform}, user: ${identifier}, token length: ${oauthToken.length}`);
+    
     // Link platform token to user
-    await linkPlatformToken(identifier, platform, token, platformUserId);
+    await linkPlatformToken(identifier, platform, oauthToken, platformUserId);
+    
+    console.log(`[Save Tokens] ✅ Token saved successfully for ${platform}`);
     
     // Get updated status
     const status = await getConnectedPlatforms(identifier);

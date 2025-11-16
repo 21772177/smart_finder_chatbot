@@ -136,6 +136,7 @@ async function fetchAllYouTubeContent(service, userId) {
     
     // Test API access first
     try {
+      console.log(`[YouTube Sync] Testing API access with token length: ${service.accessToken?.length || 0}`);
       const testResponse = await youtube.channels.list({
         part: 'snippet',
         mine: true,
