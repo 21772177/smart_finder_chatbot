@@ -78,7 +78,10 @@ async function parseIntentWithLLM(query) {
 - recall: User wants to recall past visits or location history
 - general: General conversation or unclear intent
 
-IMPORTANT: If the query mentions "reel", "reels", "saved", "liked", "show me", "find", or asks about content from YouTube/Instagram/Facebook, classify it as "saved_content" or "reel_search" or "video_search".
+IMPORTANT: 
+- If the query mentions "reel", "reels", "saved", "liked", "show me", "find", or asks about content from YouTube/Instagram/Facebook, classify it as "saved_content" or "reel_search" or "video_search".
+- If the query mentions "buy", "purchase", "find product", "search for [product]", "where to buy", "best price", classify it as "product_search".
+- If the query mentions "image", "photo", "picture", "what's in this", "read text", "identify", "analyze image", classify it as "vision_search".
 
 Respond with JSON only: {"intent": "intent_name", "platforms": ["platform1", "platform2"], "keywords": ["keyword1", "keyword2"]}`;
 
