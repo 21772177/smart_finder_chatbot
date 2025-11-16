@@ -58,10 +58,19 @@ async function syncAllPlatformContent(userId, platform, accessToken) {
     }
     
     // Index all content in Firestore with embeddings
+    console.log(`[Background Sync] Starting to index ${allContent.length} items from ${platform}...`);
     const syncResult = await syncPlatformContent(userId, platform, allContent);
     
-    console.log(`[Background Sync] Indexed ${syncResult.indexed} items from ${platform} for user ${userId}`);
-    console.log(`[Background Sync] Summary: Fetched ${allContent.length} items, Indexed ${syncResult.indexed} items`);
+    console.log(`[Background Sync] ✅ Indexed ${syncResult.indexed || 0} items from ${platform} for user ${userId}`);
+    console.log(`[Background Sync] 📊 Summary: Fetched ${allContent.length} items, Indexed ${syncResult.indexed || 0} items`);
+    
+    if (syncResult.error) {
+      console.error(`[Background Sync] ❌ Indexing error: ${syncResult.error}`);
+    }
+    
+    if (allContent.length > 0 && (syncResult.indexed || 0) === 0) {
+      console.error(`[Background Sync] ⚠️ WARNING: Fetched ${allContent.length} items but indexed 0! This indicates an indexing problem.`);
+    }
     
     // Log sync completion with detailed info
     await logSync(platform, userId, 'completed', {
@@ -262,10 +271,12 @@ async function fetchAllYouTubeContent(service, userId) {
     }
     
     // Also get liked videos
+    let likedCount = 0;
     try {
-      let likedCount = 0;
+      console.log(`[YouTube Sync] Starting to fetch liked videos...`);
       let likedPageToken = null;
       do {
+        console.log(`[YouTube Sync] Fetching liked videos page (token: ${likedPageToken || 'first page'})...`);
         const likedResponse = await youtube.videos.list({
           part: 'snippet,contentDetails',
           myRating: 'like',
@@ -275,7 +286,15 @@ async function fetchAllYouTubeContent(service, userId) {
         
         const likedVideos = likedResponse.data.items || [];
         likedCount += likedVideos.length;
-        console.log(`[YouTube Sync] Fetched ${likedVideos.length} liked videos (total so far: ${likedCount})`);
+        console.log(`[YouTube Sync] ✅ Fetched ${likedVideos.length} liked videos (total so far: ${likedCount})`);
+        
+        if (likedVideos.length === 0 && !likedPageToken) {
+          console.log(`[YouTube Sync] ⚠️ No liked videos found. This might mean:`);
+          console.log(`[YouTube Sync]   1. User has no liked videos`);
+          console.log(`[YouTube Sync]   2. OAuth token doesn't have 'youtube.readonly' scope`);
+          console.log(`[YouTube Sync]   3. API permissions issue`);
+        }
+        
         for (const video of likedVideos) {
           allContent.push({
             platform: 'YouTube',
@@ -293,24 +312,31 @@ async function fetchAllYouTubeContent(service, userId) {
         }
         
         likedPageToken = likedResponse.data.nextPageToken;
+        console.log(`[YouTube Sync] Next page token: ${likedPageToken ? 'exists' : 'none (last page)'}`);
       } while (likedPageToken);
-      console.log(`[YouTube Sync] Total liked videos: ${likedCount}`);
+      console.log(`[YouTube Sync] ✅ Total liked videos fetched: ${likedCount}`);
     } catch (err) {
-      console.error('[YouTube Sync] Error fetching liked videos:', err.message);
-      console.error('[YouTube Sync] Error details:', err.response?.data || err);
+      console.error('[YouTube Sync] ❌ Error fetching liked videos:', err.message);
+      console.error('[YouTube Sync] Error code:', err.code);
+      console.error('[YouTube Sync] Error response status:', err.response?.status);
+      console.error('[YouTube Sync] Error response data:', JSON.stringify(err.response?.data || {}, null, 2));
       await logSync('youtube', userId, 'failed', { 
         error: `Liked videos fetch error: ${err.message}`,
         errorDetails: err.response?.data,
-        errorCode: err.code
+        errorCode: err.code,
+        errorStatus: err.response?.status
       });
+      // Don't throw - continue with other content
     }
     
     // Calculate breakdown
     const playlistItems = allContent.filter(c => c.savedIn !== 'Liked Videos' && c.savedIn !== 'Watch Later').length;
     const watchLaterItems = allContent.filter(c => c.savedIn === 'Watch Later').length;
+    const likedItems = allContent.filter(c => c.savedIn === 'Liked Videos').length;
     
-    console.log(`[YouTube Sync] COMPLETE: Total items fetched: ${allContent.length}`);
-    console.log(`[YouTube Sync] Breakdown: ${playlistItems} from playlists, ${watchLaterItems} from Watch Later, ${likedCount} liked videos`);
+    console.log(`[YouTube Sync] 📊 COMPLETE: Total items fetched: ${allContent.length}`);
+    console.log(`[YouTube Sync] 📊 Breakdown: ${playlistItems} from playlists, ${watchLaterItems} from Watch Later, ${likedItems} liked videos`);
+    console.log(`[YouTube Sync] 📊 All content array length: ${allContent.length}, Liked count variable: ${likedCount}`);
     
   } catch (error) {
     console.error('[YouTube Sync] Error fetching YouTube content:', error.message);

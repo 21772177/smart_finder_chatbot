@@ -176,6 +176,7 @@ async function generateEmbedding(text) {
   }
   
   if (!gemini && !openai) {
+    console.warn('[Embedding] ⚠️ No LLM configured - returning null embedding');
     return null;
   }
 
@@ -187,15 +188,22 @@ async function generateEmbedding(text) {
         const result = await model.embedContent(text);
         // Extract embedding from result
         if (result.embedding) {
-          return result.embedding.values || result.embedding;
+          const embedding = result.embedding.values || result.embedding;
+          if (embedding && embedding.length > 0) {
+            console.log(`[Embedding] ✅ Generated Gemini embedding (length: ${embedding.length})`);
+            return embedding;
+          }
         }
         // Fallback: try alternative response structure
         const embedding = result.response?.embedding?.values || result.response?.embedding;
         if (embedding && embedding.length > 0) {
+          console.log(`[Embedding] ✅ Generated Gemini embedding from alternative structure (length: ${embedding.length})`);
           return embedding;
         }
+        console.warn('[Embedding] ⚠️ Gemini returned empty embedding');
       } catch (geminiError) {
-        console.error('Gemini embedding error, falling back to OpenAI:', geminiError.message);
+        console.error('[Embedding] ❌ Gemini embedding error:', geminiError.message);
+        console.error('[Embedding] Error details:', geminiError);
         // Fall through to OpenAI fallback
       }
     }

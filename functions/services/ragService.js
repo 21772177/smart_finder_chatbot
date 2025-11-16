@@ -177,43 +177,79 @@ function extractKeywords(text) {
  */
 async function syncPlatformContent(userId, platform, contentList) {
   try {
+    console.log(`[Indexing] Starting to index ${contentList.length} items for platform ${platform}, user ${userId}`);
+    
+    if (!contentList || contentList.length === 0) {
+      console.log(`[Indexing] ⚠️ No content to index (empty array)`);
+      return { success: true, indexed: 0 };
+    }
+    
     const db = getDb();
     let batch = db.batch();
     let count = 0;
     const batchSize = 500;
+    let errorCount = 0;
 
-    for (const content of contentList) {
-      const textToEmbed = `${content.title || content.caption || content.message} ${content.description || ''}`;
-      const embedding = await generateEmbedding(textToEmbed);
+    for (let i = 0; i < contentList.length; i++) {
+      const content = contentList[i];
+      try {
+        const textToEmbed = `${content.title || content.caption || content.message} ${content.description || ''}`;
+        
+        if (!textToEmbed.trim()) {
+          console.warn(`[Indexing] ⚠️ Skipping item ${i + 1}: No text content (id: ${content.id || 'unknown'})`);
+          continue;
+        }
+        
+        console.log(`[Indexing] Processing item ${i + 1}/${contentList.length}: "${content.title || content.caption || 'no title'}"`);
+        
+        let embedding = null;
+        try {
+          embedding = await generateEmbedding(textToEmbed);
+          if (!embedding) {
+            console.warn(`[Indexing] ⚠️ No embedding generated for item ${i + 1}, will index without embedding`);
+          }
+        } catch (embedError) {
+          console.error(`[Indexing] ❌ Embedding generation failed for item ${i + 1}:`, embedError.message);
+          // Continue without embedding - content will still be indexed
+        }
 
-      const docRef = db.collection('content_index').doc();
-      batch.set(docRef, {
-        userId,
-        platform,
-        content: content,
-        text: textToEmbed,
-        embedding: embedding || null,
-        keywords: extractKeywords(textToEmbed),
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
-        indexed: !!embedding
-      });
+        const docRef = db.collection('content_index').doc();
+        batch.set(docRef, {
+          userId,
+          platform,
+          content: content,
+          text: textToEmbed,
+          embedding: embedding || null,
+          keywords: extractKeywords(textToEmbed),
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          indexed: !!embedding
+        });
 
-      count++;
-      if (count % batchSize === 0) {
-        await batch.commit();
-        batch = db.batch();
+        count++;
+        if (count % batchSize === 0) {
+          console.log(`[Indexing] Committing batch of ${batchSize} items (total indexed so far: ${count})`);
+          await batch.commit();
+          batch = db.batch();
+        }
+      } catch (itemError) {
+        errorCount++;
+        console.error(`[Indexing] ❌ Error indexing item ${i + 1}:`, itemError.message);
+        // Continue with next item
       }
     }
 
     // Commit remaining items
     if (count % batchSize !== 0) {
+      console.log(`[Indexing] Committing final batch of ${count % batchSize} items (total indexed: ${count})`);
       await batch.commit();
     }
 
-    return { success: true, indexed: count };
+    console.log(`[Indexing] ✅ Complete: Indexed ${count} items, ${errorCount} errors`);
+    return { success: true, indexed: count, errors: errorCount };
   } catch (error) {
-    console.error('Sync error:', error);
-    return { success: false, error: error.message };
+    console.error('[Indexing] ❌ Fatal sync error:', error);
+    console.error('[Indexing] Error stack:', error.stack);
+    return { success: false, error: error.message, indexed: 0 };
   }
 }
 
