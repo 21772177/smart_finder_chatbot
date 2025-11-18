@@ -64,34 +64,55 @@ async function syncAllPlatformContent(userId, platform, accessToken) {
     
     // Index all content in Firestore with embeddings
     console.log(`[Background Sync] Starting to index ${allContent.length} items from ${platform}...`);
-    const syncResult = await syncPlatformContent(userId, platform, allContent);
+    console.log(`[Background Sync] First 3 items sample:`, allContent.slice(0, 3).map(c => ({ id: c.id, title: c.title?.substring(0, 50) })));
     
-    console.log(`[Background Sync] ✅ Indexed ${syncResult.indexed || 0} items from ${platform} for user ${userId}`);
-    console.log(`[Background Sync] 📊 Summary: Fetched ${allContent.length} items, Indexed ${syncResult.indexed || 0} items`);
+    if (allContent.length === 0) {
+      console.warn(`[Background Sync] ⚠️ WARNING: No content fetched from ${platform}. This could mean:`);
+      console.warn(`[Background Sync]   1. User has no saved/liked content on this platform`);
+      console.warn(`[Background Sync]   2. OAuth token doesn't have required permissions`);
+      console.warn(`[Background Sync]   3. API call failed silently`);
+    }
+    
+    const syncResult = await syncPlatformContent(userId, platform, allContent);
+    const indexedCount = syncResult.indexed || syncResult.itemsIndexed || 0;
+    
+    console.log(`[Background Sync] Indexing result:`, {
+      itemsFetched: allContent.length,
+      itemsIndexed: indexedCount,
+      success: syncResult.success !== false,
+      error: syncResult.error || null
+    });
+    
+    console.log(`[Background Sync] ✅ Indexed ${indexedCount} items from ${platform} for user ${userId}`);
+    console.log(`[Background Sync] 📊 Summary: Fetched ${allContent.length} items, Indexed ${indexedCount} items`);
     
     if (syncResult.error) {
       console.error(`[Background Sync] ❌ Indexing error: ${syncResult.error}`);
     }
     
-    if (allContent.length > 0 && (syncResult.indexed || 0) === 0) {
+    if (allContent.length > 0 && indexedCount === 0) {
       console.error(`[Background Sync] ⚠️ WARNING: Fetched ${allContent.length} items but indexed 0! This indicates an indexing problem.`);
+      console.error(`[Background Sync] ⚠️ Check logs above for indexing errors.`);
     }
     
     // Log sync completion with detailed info
     await logSync(platform, userId, 'completed', {
       itemsFetched: allContent.length,
-      itemsIndexed: syncResult.indexed || 0,
+      itemsIndexed: indexedCount,
       fetchSuccess: allContent.length > 0,
-      indexSuccess: syncResult.success !== false
+      indexSuccess: syncResult.success !== false,
+      error: syncResult.error || null
     });
     
     return {
-      success: true,
+      success: syncResult.success !== false && indexedCount > 0,
       platform: platform,
       itemsFetched: allContent.length,
-      itemsIndexed: syncResult.indexed || 0,
-      message: `Synced ${syncResult.indexed} items from ${platform}`,
-      syncedAt: new Date().toISOString()
+      itemsIndexed: indexedCount,
+      message: indexedCount > 0 ? `Synced ${indexedCount} items from ${platform}` : `Fetched ${allContent.length} items but indexed 0`,
+      syncedAt: new Date().toISOString(),
+      ready: indexedCount > 0,
+      error: syncResult.error || (allContent.length > 0 && indexedCount === 0 ? 'Indexing failed' : null)
     };
     
   } catch (error) {

@@ -245,7 +245,17 @@ async function syncPlatformContent(userId, platform, contentList) {
     }
 
     console.log(`[Indexing] ✅ Complete: Indexed ${count} items, ${errorCount} errors`);
-    return { success: true, indexed: count, errors: errorCount };
+    console.log(`[Indexing] 📊 Final count: ${count} successful, ${errorCount} failed, ${contentList.length} total items`);
+    
+    if (errorCount > 0) {
+      console.warn(`[Indexing] ⚠️ ${errorCount} items failed to index. Check logs above for details.`);
+    }
+    
+    if (contentList.length > 0 && count === 0) {
+      console.error(`[Indexing] ❌ CRITICAL: ${contentList.length} items fetched but 0 indexed! All items failed.`);
+    }
+    
+    return { success: count > 0, indexed: count, itemsIndexed: count, errorCount: errorCount };
   } catch (error) {
     console.error('[Indexing] ❌ Fatal sync error:', error);
     console.error('[Indexing] Error stack:', error.stack);

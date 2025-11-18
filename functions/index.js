@@ -690,6 +690,51 @@ app.get('/api/debug/logs', async (req, res) => {
 });
 
 /**
+ * Debug endpoint - Test YouTube sync manually
+ */
+app.post('/api/debug/test-youtube-sync', async (req, res) => {
+  try {
+    const { token, userId } = req.body;
+    const identifier = userId || token;
+    
+    if (!identifier) {
+      return res.status(400).json({ error: 'token or userId is required' });
+    }
+    
+    // Get user tokens
+    const userTokens = await getUserTokensByIdentifier(identifier);
+    const youtubeToken = userTokens.youtube;
+    
+    if (!youtubeToken) {
+      return res.status(400).json({ 
+        error: 'No YouTube token found. Please connect YouTube first.',
+        hasToken: false
+      });
+    }
+    
+    console.log(`[Debug Test] Starting YouTube sync test for user ${identifier}`);
+    console.log(`[Debug Test] Token present: ${!!youtubeToken}, length: ${youtubeToken?.length || 0}`);
+    
+    // Test the sync
+    const syncResult = await syncAllPlatformContent(identifier, 'youtube', youtubeToken);
+    
+    res.json({
+      success: true,
+      testResult: syncResult,
+      message: `Test completed. Fetched: ${syncResult.itemsFetched}, Indexed: ${syncResult.itemsIndexed}`
+    });
+    
+  } catch (error) {
+    console.error('Debug test error:', error);
+    res.status(500).json({ 
+      error: 'Test failed', 
+      message: error.message,
+      stack: error.stack
+    });
+  }
+});
+
+/**
  * Debug endpoint - Get sync status
  */
 app.get('/api/debug/sync-status', async (req, res) => {
