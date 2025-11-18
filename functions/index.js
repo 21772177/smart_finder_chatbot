@@ -277,6 +277,92 @@ app.post('/api/query', async (req, res) => {
         hasOcr: !!visionResult.ocr
       });
       
+    } else if (intent === 'link_analysis') {
+      // Link intelligence - extract metadata from URLs
+      console.log(`[Query] Link analysis requested`);
+      
+      // Extract URL from query or intent result
+      let urlToAnalyze = intentResult.url;
+      if (!urlToAnalyze) {
+        // Try to extract URL from query text
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+        const matches = queryText.match(urlRegex);
+        if (matches && matches.length > 0) {
+          urlToAnalyze = matches[0];
+        }
+      }
+      
+      if (!urlToAnalyze) {
+        responseText = 'Please provide a URL to analyze. You can paste a link or say "analyze this link: [URL]".';
+        return res.json({
+          success: false,
+          response: responseText,
+          results: []
+        });
+      }
+      
+      const LinkIntelligenceService = require('./services/linkIntelligenceService');
+      const linkService = new LinkIntelligenceService();
+      
+      // Get user tokens for authenticated platforms
+      const userTokens = await getUserTokens(userIdentifier);
+      const accessToken = urlToAnalyze.includes('instagram.com') ? userTokens.instagram :
+                         urlToAnalyze.includes('facebook.com') ? userTokens.facebook :
+                         urlToAnalyze.includes('youtube.com') || urlToAnalyze.includes('youtu.be') ? userTokens.youtube :
+                         null;
+      
+      const linkResult = await linkService.analyzeLink(urlToAnalyze, accessToken);
+      
+      if (linkResult.error) {
+        responseText = `Error analyzing link: ${linkResult.error}`;
+        results = [{
+          type: 'link_analysis',
+          platform: linkResult.platform || 'unknown',
+          url: urlToAnalyze,
+          error: linkResult.error
+        }];
+      } else {
+        // Format response
+        const platformName = linkResult.platform.charAt(0).toUpperCase() + linkResult.platform.slice(1);
+        let responseParts = [`📎 ${platformName} Link Analysis:`];
+        
+        if (linkResult.title) {
+          responseParts.push(`\n📌 Title: ${linkResult.title}`);
+        }
+        if (linkResult.description) {
+          responseParts.push(`\n📝 Description: ${linkResult.description.substring(0, 200)}${linkResult.description.length > 200 ? '...' : ''}`);
+        }
+        if (linkResult.channelTitle) {
+          responseParts.push(`\n👤 Channel/Author: ${linkResult.channelTitle}`);
+        }
+        if (linkResult.publishedAt) {
+          responseParts.push(`\n📅 Published: ${new Date(linkResult.publishedAt).toLocaleDateString()}`);
+        }
+        if (linkResult.viewCount) {
+          responseParts.push(`\n👁️ Views: ${parseInt(linkResult.viewCount).toLocaleString()}`);
+        }
+        if (linkResult.likeCount) {
+          responseParts.push(`\n👍 Likes: ${parseInt(linkResult.likeCount).toLocaleString()}`);
+        }
+        
+        responseText = responseParts.join('\n');
+        
+        results = [{
+          type: 'link_analysis',
+          platform: linkResult.platform,
+          url: urlToAnalyze,
+          title: linkResult.title,
+          description: linkResult.description,
+          thumbnail: linkResult.thumbnail,
+          metadata: linkResult.metadata || {}
+        }];
+      }
+      
+      await logQuery(userIdentifier, queryText, intent, results.length, {
+        platform: linkResult.platform || 'unknown',
+        hasMetadata: !linkResult.error
+      });
+      
     } else if (intent === 'nearby_restaurant' || intent === 'nearby_search') {
       // Call Google Places Nearby Search
       const { fetchPlacesDirect } = require('./services/directFetch');
@@ -699,3 +785,7 @@ app.get('/api/debug/status', async (req, res) => {
 });
 
 exports.api = functions.https.onRequest(app);
+
+// Export scheduled functions
+exports.autoSyncAllUsers = require('./scheduled/autoSync').autoSyncAllUsers;
+exports.autoSyncUser = require('./scheduled/autoSync').autoSyncUser;

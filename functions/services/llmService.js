@@ -76,6 +76,7 @@ async function parseIntentWithLLM(query) {
 - video_search: User wants to search for videos (YouTube videos, etc.)
 - product_search: User wants to search for products to buy (e.g., "find phone", "buy laptop", "search for shoes", "where to buy", "best price for")
 - vision_search: User wants to analyze an image or extract information from an image (e.g., "what's in this image", "read text from image", "identify this", "analyze image")
+- link_analysis: User wants to analyze or extract metadata from a URL/link (e.g., "analyze this link", "what's in this URL", "extract info from this link", "tell me about this video", when a URL is provided)
 - nearby_restaurant: User wants to find nearby restaurants or places
 - recall: User wants to recall past visits or location history
 - general: General conversation or unclear intent
@@ -84,8 +85,9 @@ IMPORTANT:
 - If the query mentions "reel", "reels", "saved", "liked", "show me", "find", or asks about content from YouTube/Instagram/Facebook, classify it as "saved_content" or "reel_search" or "video_search".
 - If the query mentions "buy", "purchase", "find product", "search for [product]", "where to buy", "best price", classify it as "product_search".
 - If the query mentions "image", "photo", "picture", "what's in this", "read text", "identify", "analyze image", classify it as "vision_search".
+- If the query contains a URL (http:// or https://) or mentions "analyze link", "extract from URL", "what's in this link", "tell me about this video/URL", classify it as "link_analysis".
 
-Respond with JSON only: {"intent": "intent_name", "platforms": ["platform1", "platform2"], "keywords": ["keyword1", "keyword2"]}`;
+Respond with JSON only: {"intent": "intent_name", "platforms": ["platform1", "platform2"], "keywords": ["keyword1", "keyword2"], "url": "extracted_url_if_present"}`;
 
   try {
     // Try Gemini first (primary)
