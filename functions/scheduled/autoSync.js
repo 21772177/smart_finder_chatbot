@@ -6,15 +6,28 @@
 
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
-const { syncAllPlatformContent } = require('../services/contentSync');
-const { getUserTokensByIdentifier } = require('../services/unifiedAuth');
-const { logSync, logError } = require('../services/debugLogger');
 
-if (!admin.apps.length) {
-  admin.initializeApp();
+// Lazy load services to avoid initialization timeout
+let syncAllPlatformContent, logError;
+let db;
+
+function getServices() {
+  if (!syncAllPlatformContent) {
+    syncAllPlatformContent = require('../services/contentSync').syncAllPlatformContent;
+    logError = require('../services/debugLogger').logError;
+  }
+  return { syncAllPlatformContent, logError };
 }
 
-const db = admin.firestore();
+function getDb() {
+  if (!db) {
+    if (!admin.apps.length) {
+      admin.initializeApp();
+    }
+    db = admin.firestore();
+  }
+  return db;
+}
 
 /**
  * Scheduled function to auto-sync content for all users
@@ -25,6 +38,9 @@ exports.autoSyncAllUsers = functions.pubsub
   .timeZone('UTC')
   .onRun(async (context) => {
     console.log('[Auto-Sync] Starting scheduled sync for all users...');
+    
+    const { syncAllPlatformContent, logError } = getServices();
+    const db = getDb();
     
     try {
       // Get all users with connected platforms
@@ -136,6 +152,9 @@ exports.autoSyncUser = functions.https.onCall(async (data, context) => {
   if (!userId) {
     throw new functions.https.HttpsError('invalid-argument', 'userId is required');
   }
+  
+  const { syncAllPlatformContent } = getServices();
+  const db = getDb();
   
   try {
     const userDoc = await db.collection('users').doc(userId).get();

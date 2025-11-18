@@ -786,6 +786,12 @@ app.get('/api/debug/status', async (req, res) => {
 
 exports.api = functions.https.onRequest(app);
 
-// Export scheduled functions
-exports.autoSyncAllUsers = require('./scheduled/autoSync').autoSyncAllUsers;
-exports.autoSyncUser = require('./scheduled/autoSync').autoSyncUser;
+// Export scheduled functions (lazy load to avoid initialization timeout)
+// These are also exported from scheduled/autoSync.js, but we include them here for explicit visibility
+try {
+  const scheduledFunctions = require('./scheduled/autoSync');
+  exports.autoSyncAllUsers = scheduledFunctions.autoSyncAllUsers;
+  exports.autoSyncUser = scheduledFunctions.autoSyncUser;
+} catch (error) {
+  console.warn('Scheduled functions not available:', error.message);
+}
