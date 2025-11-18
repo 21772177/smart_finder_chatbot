@@ -784,6 +784,153 @@ app.get('/api/debug/status', async (req, res) => {
   }
 });
 
+/**
+ * Sync links from Chrome Extension
+ * Receives links saved by Chrome extension and indexes them
+ */
+app.post('/api/sync-links', async (req, res) => {
+  try {
+    const { userId, token, links } = req.body;
+    
+    const identifier = userId || token;
+    if (!identifier || !links || !Array.isArray(links)) {
+      return res.status(400).json({ 
+        error: 'userId/token and links array are required' 
+      });
+    }
+    
+    console.log(`[Sync Links] Received ${links.length} links from Chrome extension for user ${identifier}`);
+    
+    // Process each link
+    const processedLinks = [];
+    for (const linkData of links) {
+      try {
+        const { url, metadata, platform } = linkData;
+        
+        if (!url) {
+          console.warn('[Sync Links] Skipping link without URL');
+          continue;
+        }
+        
+        // Detect platform if not provided
+        const detectedPlatform = platform || 
+          (url.includes('youtube.com') || url.includes('youtu.be') ? 'youtube' :
+           url.includes('instagram.com') ? 'instagram' :
+           url.includes('facebook.com') ? 'facebook' : 'unknown');
+        
+        // Create content object for indexing
+        const contentItem = {
+          id: `chrome_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          url: url,
+          title: metadata?.title || metadata?.description || 'Saved Link',
+          description: metadata?.description || '',
+          thumbnail: metadata?.thumbnail || null,
+          platform: detectedPlatform,
+          type: metadata?.type || 'link',
+          savedAt: metadata?.timestamp || new Date().toISOString(),
+          source: 'chrome_extension',
+          metadata: metadata || {}
+        };
+        
+        // Index the content
+        await indexContent(contentItem, identifier, detectedPlatform);
+        processedLinks.push(contentItem);
+        
+        console.log(`[Sync Links] Indexed link: ${url}`);
+      } catch (linkError) {
+        console.error(`[Sync Links] Error processing link:`, linkError);
+      }
+    }
+    
+    // Log sync
+    await logSync('chrome_extension', identifier, 'completed', {
+      itemsFetched: links.length,
+      itemsIndexed: processedLinks.length,
+      source: 'chrome_extension'
+    });
+    
+    res.json({
+      success: true,
+      count: processedLinks.length,
+      message: `Synced ${processedLinks.length} links from Chrome extension`,
+      links: processedLinks
+    });
+    
+  } catch (error) {
+    console.error('Sync links error:', error);
+    await logError(error, { source: 'chrome_extension' }, req.body.userId || req.body.token);
+    res.status(500).json({ 
+      error: 'Failed to sync links', 
+      message: error.message 
+    });
+  }
+});
+
+/**
+ * Save link from Android Helper or other external sources
+ * Receives a single link and indexes it
+ */
+app.post('/api/saveLink', async (req, res) => {
+  try {
+    const { userId, deviceToken, url, platform, metadata } = req.body;
+    
+    const identifier = userId || deviceToken;
+    if (!identifier || !url) {
+      return res.status(400).json({ 
+        error: 'userId/deviceToken and url are required' 
+      });
+    }
+    
+    console.log(`[Save Link] Received link from external source: ${url}`);
+    
+    // Detect platform if not provided
+    const detectedPlatform = platform || 
+      (url.includes('youtube.com') || url.includes('youtu.be') ? 'youtube' :
+       url.includes('instagram.com') ? 'instagram' :
+       url.includes('facebook.com') ? 'facebook' : 'unknown');
+    
+    // Create content object for indexing
+    const contentItem = {
+      id: `external_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      url: url,
+      title: metadata?.title || 'Saved Link',
+      description: metadata?.description || '',
+      thumbnail: metadata?.thumbnail || null,
+      platform: detectedPlatform,
+      type: metadata?.type || 'link',
+      savedAt: metadata?.sharedAt || metadata?.timestamp || new Date().toISOString(),
+      source: 'external',
+      metadata: metadata || {}
+    };
+    
+    // Index the content
+    await indexContent(contentItem, identifier, detectedPlatform);
+    
+    console.log(`[Save Link] Indexed link: ${url}`);
+    
+    // Log sync
+    await logSync(detectedPlatform, identifier, 'completed', {
+      itemsFetched: 1,
+      itemsIndexed: 1,
+      source: 'external'
+    });
+    
+    res.json({
+      success: true,
+      message: 'Link saved and indexed',
+      link: contentItem
+    });
+    
+  } catch (error) {
+    console.error('Save link error:', error);
+    await logError(error, { source: 'external' }, req.body.userId || req.body.deviceToken);
+    res.status(500).json({ 
+      error: 'Failed to save link', 
+      message: error.message 
+    });
+  }
+});
+
 exports.api = functions.https.onRequest(app);
 
 // Export scheduled functions (lazy load to avoid initialization timeout)
