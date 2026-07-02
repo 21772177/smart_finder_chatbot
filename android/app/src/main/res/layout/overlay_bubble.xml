@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="56dp"
+    android:layout_height="56dp"
+    android:background="@drawable/ic_overlay_brain">
+
+    <ImageView
+        android:id="@+id/overlayIcon"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:clickable="true"
+        android:focusable="true"
+        android:contentDescription="Second Brain overlay" />
+</FrameLayout>

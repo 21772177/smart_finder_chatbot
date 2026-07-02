@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Second Brain</string>
+    <string name="accessibility_service_description">Second Brain uses Accessibility Service to detect your current screen content when you tap the floating overlay. No content is collected or stored without your explicit action.</string>
+</resources>

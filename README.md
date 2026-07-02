@@ -1,170 +1,27 @@
-# Smart Finder AI Chatbot
+# Second Brain
 
-An intelligent multi-platform content search chatbot powered by LLM, RAG, and Agentic AI.
+A privacy-first Android AI assistant that uses a floating overlay to analyze any screen content on-demand. All processing is local — your data never leaves your device.
 
-## 🚀 Features
+## Features
 
-- **Multi-Platform Search**: Search saved content across YouTube, Instagram, Facebook
-- **LLM-Powered**: Uses Gemini AI (with OpenAI fallback) for intelligent query understanding
-- **RAG System**: Semantic search on indexed content for instant results
-- **Agentic Router**: Intelligently routes queries to appropriate platforms
-- **Auto-Sync**: Automatically indexes your saved content in the background
-- **OAuth Integration**: Secure platform connections with direct OAuth flows
-- **Places Search**: Find nearby restaurants, cafes, and more
-- **Timeline Recall**: Remember past visits and locations
+- **Floating overlay** — tap to analyze any screen
+- **AI-powered understanding** — OCR, summarization, translation
+- **Local-first** — everything stored on-device with encryption
+- **Semantic search** — find saved memories by meaning, not just keywords
+- **Privacy by design** — no continuous monitoring, no cloud storage by default
 
-## 📋 Prerequisites
+## Tech Stack
 
-- Node.js 20+
-- Firebase account
-- API keys (see setup below)
+- **Flutter** + Riverpod + Material 3
+- **Android**: AccessibilityService, MediaProjection, Foreground Service
+- **AI**: ML Kit OCR, Whisper (optional), local LLM embeddings
+- **Storage**: Drift (SQLite) with encrypted local database
+- **DevOps**: GitHub Actions
 
-## ⚙️ Required API Keys
-
-**All API keys are mandatory for full functionality.** See `env.example` for complete list.
-
-### Essential (Minimum Required)
-
-1. **LLM API Key** (Choose one):
-   - `GEMINI_API_KEY` - Recommended (cheaper, better Google integration)
-   - `OPENAI_API_KEY` - Alternative/fallback
-
-2. **YouTube API Key**:
-   - `YT_API_KEY` or `YOUTUBE_API_KEY` - For public video search
-
-3. **OAuth Credentials** (For platform connections):
-   - `YT_OAUTH_CLIENT_ID` & `YT_OAUTH_CLIENT_SECRET` - YouTube OAuth
-   - `INSTAGRAM_CLIENT_ID` & `INSTAGRAM_CLIENT_SECRET` - Instagram OAuth
-   - `FACEBOOK_APP_ID` & `FACEBOOK_APP_SECRET` - Facebook OAuth
-
-### Optional (For Enhanced Features)
-
-- `GOOGLE_MAPS_KEY` - For Places search
-- `GOOGLE_OAUTH_CLIENT_ID` & `GOOGLE_OAUTH_CLIENT_SECRET` - For Timeline features
-- `OAUTH_REDIRECT_BASE` - Custom OAuth redirect URL
-
-## 🛠️ Quick Setup
-
-### 1. Clone Repository
+## Build
 
 ```bash
-git clone https://github.com/21772177/smart_finder_chatbot.git
-cd smart_finder_chatbot
+flutter pub get
+dart run build_runner build
+flutter build apk --debug
 ```
-
-### 2. Install Dependencies
-
-```bash
-cd functions
-npm install
-cd ..
-```
-
-### 3. Configure API Keys
-
-**📚 For complete step-by-step setup instructions, see:**
-- **[COMPLETE_SETUP_GUIDE.md](COMPLETE_SETUP_GUIDE.md)** - Detailed guide with screenshots and instructions
-- **[QUICK_SETUP_COMMANDS.sh](QUICK_SETUP_COMMANDS.sh)** - Quick reference commands
-
-**Quick Start:**
-
-```bash
-# Check what's missing
-./SETUP_REQUIRED_KEYS.sh
-
-# Follow COMPLETE_SETUP_GUIDE.md to get all credentials, then:
-./QUICK_SETUP_COMMANDS.sh  # Shows all commands to run
-
-# After setting all keys, deploy
-firebase deploy --only functions
-```
-
-### 4. Deploy
-
-```bash
-firebase deploy --only functions,hosting
-```
-
-## 📚 Documentation
-
-- **`COMPLETE_SETUP_GUIDE.md`** - Step-by-step guide to set up all API keys and OAuth credentials (Developer setup - one time only)
-- **`DEVELOPER_VS_USER_SETUP.md`** - ⚠️ **IMPORTANT:** Explains the difference between developer setup and user experience
-- **`QUICK_SETUP_COMMANDS.sh`** - Quick reference commands for setup
-- **`SETUP_REQUIRED_KEYS.sh`** - Check which API keys are configured
-- **`API_KEYS_STATUS.md`** - Current status of configured API keys
-- **`env.example`** - Complete list of all required API keys
-- **`OAUTH_SETUP_GUIDE.md`** - Detailed OAuth setup instructions
-- **`GEMINI_SETUP.md`** - Gemini API setup and comparison
-- **`SETUP_YOUTUBE_API.md`** - YouTube API setup guide
-- **`QUICKSTART.md`** - Quick start guide
-- **`COMPLETE_USER_GUIDE.md`** - Complete user guide
-
-## 🔑 Getting API Keys
-
-### Gemini API Key
-1. Go to [Google AI Studio](https://makersuite.google.com/app/apikey)
-2. Create API key
-3. Copy and set in config
-
-### YouTube API Key
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Enable "YouTube Data API v3"
-3. Create API key
-4. Copy and set in config
-
-### OAuth Credentials
-See `OAUTH_SETUP_GUIDE.md` for detailed instructions on getting OAuth credentials for each platform.
-
-## 🌐 Live Demo
-
-**URL**: https://buildkit-1695f.web.app
-
-## 📖 Usage
-
-1. Open the chatbot URL
-2. Connect your social media accounts (YouTube, Instagram, Facebook)
-3. Ask questions like:
-   - "Show my Goa reels"
-   - "Find travel videos I saved"
-   - "What restaurants are nearby?"
-   - "Show me my liked YouTube videos"
-
-## 🏗️ Architecture
-
-```
-User Query
-    ↓
-LLM Intent Parser (Gemini/OpenAI)
-    ↓
-Agentic Router (decides platforms)
-    ↓
-Parallel Search:
-  - RAG (Firestore indexed cache)
-  - YouTube API (live)
-  - Instagram API (live)
-  - Facebook API (live)
-    ↓
-Aggregate & Deduplicate
-    ↓
-LLM Response Generation
-    ↓
-Return Results
-```
-
-## 🔄 Updating GitHub
-
-```bash
-./update_github.sh "Your commit message"
-```
-
-## 📝 License
-
-[Your License Here]
-
-## 🤝 Contributing
-
-[Contributing Guidelines]
-
----
-
-**Note**: All API keys listed in `env.example` are **mandatory** for the chatbot to work with platforms. Make sure to configure all required keys before deployment.

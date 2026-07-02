@@ -1,62 +1,45 @@
-# Dependencies
-node_modules/
-functions/node_modules/
-public/node_modules/
-package-lock.json
-yarn.lock
-
-# Firebase
-.firebase/
-firebase-debug.log
-firestore-debug.log
-ui-debug.log
-.firebaserc.local
-
-# Build outputs
-dist/
-build/
-public/dist/
-public/build/
-
-# Environment variables
-.env
-.env.local
-.env.production
-.env.*.local
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Logs
+# Miscellaneous
+*.class
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
 
-# Firebase Functions
-functions/.env
-functions/.env.local
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
 
-# Temporary files
-*.tmp
-*.temp
-.cache/
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
 
-# Package folders - Now included in repository for reference
-# smartfinder_v3_pkce_package/
-# smartfinder_full_gemini_package_v2/
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
 
-# OAuth Client Secret Files (sensitive credentials)
-client_secret_*.json
-*.json
-!package.json
-!firestore.indexes.json
-!tsconfig.json
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release

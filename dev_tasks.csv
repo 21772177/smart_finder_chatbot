@@ -1,8 +1,0 @@
-task,owner,week,notes
-Finalize APIs,Product,1,Google/YT/Instagram keys
-Build /api/query,Backend,3,Intent parsing
-Integrate Maps,Backend,5,Places & Nearby
-Token logic,Backend,7,device token
-Web UI,Frontend,8,Chat interface
-QA Testing,QA,10,Functional tests
-Beta Launch,Product,11,Beta users
