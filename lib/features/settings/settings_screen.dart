@@ -81,6 +81,13 @@ class SettingsScreen extends ConsumerWidget {
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => _showApiKeyDialog(context, ref, settings),
                 ),
+                const Divider(height: 1),
+                SwitchListTile(
+                  title: const Text('Local LLM'),
+                  subtitle: const Text('On-device inference (Gemma/Phi/TinyLlama)'),
+                  value: settings.enableLocalLLM,
+                  onChanged: (v) => ref.read(settingsServiceProvider).enableLocalLLM = v,
+                ),
               ],
             ),
           ),

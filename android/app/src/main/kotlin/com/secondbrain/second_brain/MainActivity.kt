@@ -8,20 +8,24 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import com.secondbrain.second_brain.overlay.OverlayChannelHandler
 import com.secondbrain.second_brain.capture.CaptureChannelHandler
+import com.secondbrain.second_brain.llm.LocalLlmChannelHandler
 
 class MainActivity : FlutterActivity() {
     private val overlayHandler = OverlayChannelHandler()
     private val captureHandler = CaptureChannelHandler()
+    private val llmHandler = LocalLlmChannelHandler()
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         overlayHandler.register(flutterEngine, this)
         captureHandler.register(flutterEngine, this)
+        llmHandler.register(flutterEngine, this)
     }
 
     override fun onDestroy() {
         overlayHandler.unregister()
         captureHandler.unregister()
+        llmHandler.unregister()
         super.onDestroy()
     }
 

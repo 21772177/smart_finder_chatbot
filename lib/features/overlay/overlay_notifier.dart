@@ -5,6 +5,7 @@ import '../capture/capture_notifier.dart';
 import '../memory/memory_repository.dart';
 import '../analyze/analysis_service.dart';
 import '../analyze/cloud_analysis_service.dart';
+import '../analyze/local_llm_service.dart';
 import '../settings/settings_service.dart';
 import 'overlay_service.dart';
 
@@ -71,6 +72,7 @@ class OverlayNotifier extends StateNotifier<OverlayState> {
   final MemoryRepository _repository;
   final AnalysisService _analysisService;
   final CloudAnalysisService _cloudAnalysis;
+  final LocalLLMService _localLLM;
   final SettingsService _settings;
 
   OverlayNotifier(
@@ -80,6 +82,7 @@ class OverlayNotifier extends StateNotifier<OverlayState> {
     this._repository,
     this._analysisService,
     this._cloudAnalysis,
+    this._localLLM,
     this._settings,
   ) : super(const OverlayState()) {
     _service.onTap = _onOverlayTap;
@@ -144,9 +147,24 @@ class OverlayNotifier extends StateNotifier<OverlayState> {
     final text = ocrResult.text;
 
     final useCloud = _settings.enableCloudLLM && _cloudAnalysis.isConfigured;
-    final analysis = useCloud
-        ? await _cloudAnalysis.analyze(text, mode: state.analysisMode)
-        : _analysisService.analyze(text);
+    final useLocal = _settings.enableLocalLLM && _localLLM.isReady;
+
+    AnalysisResult analysis;
+    if (useCloud) {
+      analysis = await _cloudAnalysis.analyze(text, mode: state.analysisMode);
+    } else if (useLocal) {
+      final llmResult = await _localLLM.analyze(text, mode: state.analysisMode);
+      analysis = llmResult != null
+          ? AnalysisResult(
+              summary: llmResult,
+              keywords: _analysisService.analyze(text).keywords,
+              wordCount: text.split(RegExp(r'\s+')).length,
+              sentenceCount: text.split(RegExp(r'[.!?\n]+')).where((s) => s.trim().isNotEmpty).length,
+            )
+          : _analysisService.analyze(text);
+    } else {
+      analysis = _analysisService.analyze(text);
+    }
 
     state = state.copyWith(
       isCapturing: false,
@@ -235,6 +253,7 @@ final overlayStateProvider = StateNotifierProvider<OverlayNotifier, OverlayState
     ref.watch(memoryRepositoryProvider),
     ref.watch(analysisServiceProvider),
     ref.watch(cloudAnalysisServiceProvider),
+    ref.watch(localLlmServiceProvider),
     ref.watch(settingsServiceProvider),
   );
 });

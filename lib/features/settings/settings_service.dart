@@ -19,6 +19,9 @@ class SettingsService {
   bool get enableCloudLLM => _prefs.getBool('enable_cloud_llm') ?? false;
   set enableCloudLLM(bool value) => _prefs.setBool('enable_cloud_llm', value);
 
+  bool get enableLocalLLM => _prefs.getBool('enable_local_llm') ?? false;
+  set enableLocalLLM(bool value) => _prefs.setBool('enable_local_llm', value);
+
   bool get enableWhisper => _prefs.getBool('enable_whisper') ?? false;
   set enableWhisper(bool value) => _prefs.setBool('enable_whisper', value);
 
