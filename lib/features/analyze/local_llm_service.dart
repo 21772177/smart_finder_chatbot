@@ -1,7 +1,22 @@
+import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 enum LocalLLMStatus { unloaded, downloading, ready, error }
+
+class RecommendedModel {
+  final String name;
+  final String url;
+  final String description;
+  final int sizeMb;
+
+  const RecommendedModel({
+    required this.name,
+    required this.url,
+    required this.description,
+    required this.sizeMb,
+  });
+}
 
 class LocalLLMService {
   static const _channel = MethodChannel('com.secondbrain/llm');
@@ -15,7 +30,26 @@ class LocalLLMService {
   String? get error => _error;
   bool get isReady => _status == LocalLLMStatus.ready;
 
-  Stream<double>? get downloadProgress => null;
+  static const recommendedModels = [
+    RecommendedModel(
+      name: 'Phi-2 (GGUF Q4_K_M)',
+      url: 'https://huggingface.co/microsoft/phi-2/resolve/main/phi-2.Q4_K_M.gguf',
+      description: '2.7B params, good for Android',
+      sizeMb: 1636,
+    ),
+    RecommendedModel(
+      name: 'TinyLlama 1.1B (GGUF Q4_K_M)',
+      url: 'https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf',
+      description: '1.1B params, fast on mobile',
+      sizeMb: 670,
+    ),
+    RecommendedModel(
+      name: 'Gemma 2B (GGUF Q4_K_M)',
+      url: 'https://huggingface.co/google/gemma-2b/resolve/main/gemma-2b.Q4_K_M.gguf',
+      description: '2B params, balanced quality/speed',
+      sizeMb: 1330,
+    ),
+  ];
 
   Future<bool> downloadModel(String url, String filename) async {
     _status = LocalLLMStatus.downloading;
@@ -85,15 +119,27 @@ class LocalLLMService {
     _modelName = null;
   }
 
-  Future<String?> analyze(String text, {String? mode}) async {
+  Future<String?> _localAnalyze(String text, String prompt) async {
     if (_status != LocalLLMStatus.ready) return null;
-
-    final prompt = mode == 'explain'
-        ? 'Explain the following text in simple terms:\n\n$text'
-        : 'Summarize the following text concisely:\n\n$text';
-
     final response = await generate(prompt);
     return response;
+  }
+
+  String _buildPrompt(String text, String? mode, String? targetLanguage) {
+    switch (mode) {
+      case 'explain':
+        return 'Explain the following text in simple terms:\n\n$text';
+      case 'translate':
+        final lang = targetLanguage ?? 'English';
+        return 'Translate the following text to $lang:\n\n$text';
+      default:
+        return 'Summarize the following text concisely:\n\n$text';
+    }
+  }
+
+  Future<String?> analyze(String text, {String? mode, String? targetLanguage}) async {
+    final prompt = _buildPrompt(text, mode, targetLanguage);
+    return _localAnalyze(text, prompt);
   }
 }
 

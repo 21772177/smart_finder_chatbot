@@ -88,8 +88,13 @@ class LocalLlmChannelHandler {
 
     private fun loadModel(context: Context, path: String, result: MethodChannel.Result) {
         try {
-            // TODO: load with llama.cpp JNI
-            result.success(false)
+            val resolvedPath = if (path.startsWith("/")) {
+                path
+            } else {
+                File(context.filesDir, "models/$path").absolutePath
+            }
+            val success = LlmNative.loadModel(resolvedPath)
+            result.success(success)
         } catch (e: Exception) {
             result.error("LOAD_ERROR", e.message, null)
         }
@@ -97,14 +102,14 @@ class LocalLlmChannelHandler {
 
     private fun generate(prompt: String, maxTokens: Int, temperature: Double, result: MethodChannel.Result) {
         try {
-            // TODO: run inference via llama.cpp
-            result.success(null)
+            val response = LlmNative.generate(prompt, maxTokens, temperature.toFloat())
+            result.success(response)
         } catch (e: Exception) {
             result.error("GENERATE_ERROR", e.message, null)
         }
     }
 
     private fun unloadModel() {
-        // TODO: unload model from memory
+        LlmNative.unloadModel()
     }
 }
