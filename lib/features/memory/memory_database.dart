@@ -4,14 +4,12 @@ import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqlite3/sqlite3.dart' as sqlite3;
+import '../security/secure_key_service.dart';
 import 'memory_model.dart';
 import 'embedding_service.dart';
 
 part 'memory_database.g.dart';
-
-const _kDbKey = 'second_brain_db_key';
 
 final _embedder = EmbeddingService();
 
@@ -115,27 +113,6 @@ class AppDatabase extends _$AppDatabase {
   }
 }
 
-Future<String> _getOrCreateKey() async {
-  final prefs = await SharedPreferences.getInstance();
-  final existing = prefs.getString(_kDbKey);
-  if (existing != null && existing.isNotEmpty) return existing;
-
-  final hexChars = '0123456789abcdef';
-  final random = _SimpleRandom();
-  final key = List.generate(64, (_) => hexChars[random.nextInt(16)]).join();
-  await prefs.setString(_kDbKey, key);
-  return key;
-}
-
-class _SimpleRandom {
-  int _seed = DateTime.now().microsecondsSinceEpoch;
-
-  int nextInt(int max) {
-    _seed = (_seed * 1103515245 + 12345) & 0x7fffffff;
-    return _seed % max;
-  }
-}
-
 LazyDatabase _openConnection() {
   return LazyDatabase(() async {
     final dbFolder = await getApplicationDocumentsDirectory();
@@ -143,7 +120,8 @@ LazyDatabase _openConnection() {
 
     final nativeDb = sqlite3.sqlite3.open(file.path);
 
-    final key = await _getOrCreateKey();
+    final secureKeyService = SecureKeyService();
+    final key = await secureKeyService.getDbKey();
     nativeDb.execute('PRAGMA key = "$key"');
     nativeDb.execute('PRAGMA cipher_compatibility = 4');
 
