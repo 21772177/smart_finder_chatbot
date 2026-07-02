@@ -4,6 +4,7 @@ import '../capture/screen_capture_service.dart';
 import '../capture/capture_notifier.dart';
 import '../memory/memory_repository.dart';
 import '../analyze/analysis_service.dart';
+import '../analyze/cloud_analysis_service.dart';
 import '../settings/settings_service.dart';
 import 'overlay_service.dart';
 
@@ -19,6 +20,7 @@ class OverlayState {
   final List<String> keywords;
   final String? currentAppPackage;
   final String? blockedAppName;
+  final String? analysisMode;
 
   const OverlayState({
     this.status = OverlayStatus.inactive,
@@ -30,6 +32,7 @@ class OverlayState {
     this.keywords = const [],
     this.currentAppPackage,
     this.blockedAppName,
+    this.analysisMode,
   });
 
   OverlayState copyWith({
@@ -42,7 +45,9 @@ class OverlayState {
     List<String>? keywords,
     String? currentAppPackage,
     String? blockedAppName,
+    String? analysisMode,
     bool clearBlocked = false,
+    bool clearAnalysisMode = false,
   }) {
     return OverlayState(
       status: status ?? this.status,
@@ -54,6 +59,7 @@ class OverlayState {
       keywords: keywords ?? this.keywords,
       currentAppPackage: currentAppPackage ?? this.currentAppPackage,
       blockedAppName: clearBlocked ? null : (blockedAppName ?? this.blockedAppName),
+      analysisMode: clearAnalysisMode ? null : (analysisMode ?? this.analysisMode),
     );
   }
 }
@@ -64,10 +70,18 @@ class OverlayNotifier extends StateNotifier<OverlayState> {
   final OcrService _ocrService;
   final MemoryRepository _repository;
   final AnalysisService _analysisService;
+  final CloudAnalysisService _cloudAnalysis;
   final SettingsService _settings;
 
-  OverlayNotifier(this._service, this._captureService, this._ocrService, this._repository, this._analysisService, this._settings)
-      : super(const OverlayState()) {
+  OverlayNotifier(
+    this._service,
+    this._captureService,
+    this._ocrService,
+    this._repository,
+    this._analysisService,
+    this._cloudAnalysis,
+    this._settings,
+  ) : super(const OverlayState()) {
     _service.onTap = _onOverlayTap;
     _service.onSaveCapture = _onSaveCapture;
     _service.onDismissCapture = _onDismissCapture;
@@ -128,7 +142,11 @@ class OverlayNotifier extends StateNotifier<OverlayState> {
 
     final ocrResult = await _ocrService.extractText(captureResult.imagePath!);
     final text = ocrResult.text;
-    final analysis = _analysisService.analyze(text);
+
+    final useCloud = _settings.enableCloudLLM && _cloudAnalysis.isConfigured;
+    final analysis = useCloud
+        ? await _cloudAnalysis.analyze(text, mode: state.analysisMode)
+        : _analysisService.analyze(text);
 
     state = state.copyWith(
       isCapturing: false,
@@ -141,6 +159,10 @@ class OverlayNotifier extends StateNotifier<OverlayState> {
       final displayText = '${analysis.keywords.take(5).join(", ")}\n\n${analysis.summary}';
       _service.showResult(displayText);
     }
+  }
+
+  void setAnalysisMode(String? mode) {
+    state = state.copyWith(analysisMode: mode);
   }
 
   void dismissLastCapture() {
@@ -212,6 +234,7 @@ final overlayStateProvider = StateNotifierProvider<OverlayNotifier, OverlayState
     ref.watch(ocrServiceProvider),
     ref.watch(memoryRepositoryProvider),
     ref.watch(analysisServiceProvider),
+    ref.watch(cloudAnalysisServiceProvider),
     ref.watch(settingsServiceProvider),
   );
 });

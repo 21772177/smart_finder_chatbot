@@ -22,6 +22,15 @@ class SettingsService {
   bool get enableWhisper => _prefs.getBool('enable_whisper') ?? false;
   set enableWhisper(bool value) => _prefs.setBool('enable_whisper', value);
 
+  String? get llmApiKey => _prefs.getString('llm_api_key');
+  set llmApiKey(String? value) {
+    if (value == null || value.isEmpty) {
+      _prefs.remove('llm_api_key');
+    } else {
+      _prefs.setString('llm_api_key', value);
+    }
+  }
+
   List<String> get blockedApps =>
       _prefs.getStringList('blocked_apps') ?? List.from(AppConstants.blockedApps);
   set blockedApps(List<String> value) => _prefs.setStringList('blocked_apps', value);

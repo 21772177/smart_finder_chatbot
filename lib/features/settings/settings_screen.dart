@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../memory/memory_repository.dart';
 import 'settings_service.dart';
 import 'blocked_apps_screen.dart';
+import '../analyze/cloud_analysis_service.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -68,6 +69,18 @@ class SettingsScreen extends ConsumerWidget {
                   value: settings.enableWhisper,
                   onChanged: (v) => ref.read(settingsServiceProvider).enableWhisper = v,
                 ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.key),
+                  title: const Text('Gemini API Key'),
+                  subtitle: Text(
+                    settings.llmApiKey != null && settings.llmApiKey!.isNotEmpty
+                        ? 'Configured (${settings.llmApiKey!.substring(0, 8)}...)'
+                        : 'Not set — required for cloud analysis',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _showApiKeyDialog(context, ref, settings),
+                ),
               ],
             ),
           ),
@@ -112,6 +125,68 @@ class SettingsScreen extends ConsumerWidget {
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showApiKeyDialog(BuildContext context, WidgetRef ref, SettingsService settings) async {
+    final controller = TextEditingController(text: settings.llmApiKey ?? '');
+    final messenger = ScaffoldMessenger.of(context);
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Gemini API Key'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Enter your Google Gemini API key to enable cloud-based analysis.\n'
+              'Get a key at ai.google.dev.',
+              style: TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              decoration: const InputDecoration(
+                labelText: 'API Key',
+                hintText: 'AIza...',
+                border: OutlineInputBorder(),
+              ),
+              autofocus: true,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              ref.read(settingsServiceProvider).llmApiKey = null;
+              ref.invalidate(cloudAnalysisServiceProvider);
+              messenger.showSnackBar(
+                const SnackBar(content: Text('API key removed')),
+              );
+              Navigator.pop(ctx);
+            },
+            child: Text('Clear', style: TextStyle(color: Colors.red.shade300)),
+          ),
+          FilledButton(
+            onPressed: () {
+              final key = controller.text.trim();
+              if (key.isEmpty) return;
+              ref.read(settingsServiceProvider).llmApiKey = key;
+              ref.invalidate(cloudAnalysisServiceProvider);
+              messenger.showSnackBar(
+                const SnackBar(content: Text('API key saved')),
+              );
+              Navigator.pop(ctx);
+            },
+            child: const Text('Save'),
           ),
         ],
       ),
