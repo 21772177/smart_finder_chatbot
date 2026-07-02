@@ -145,13 +145,18 @@ class OverlayNotifier extends StateNotifier<OverlayState> {
     if (overrideText != null) {
       text = overrideText;
     } else {
-      final captureResult = await _captureService.captureCurrentScreen();
-      if (!captureResult.isSuccess) {
-        state = state.copyWith(isCapturing: false, lastCaptureError: captureResult.error);
-        return;
+      final uiText = await _service.extractUiText();
+      if (uiText != null && uiText.length > 20) {
+        text = uiText;
+      } else {
+        final captureResult = await _captureService.captureCurrentScreen();
+        if (!captureResult.isSuccess) {
+          state = state.copyWith(isCapturing: false, lastCaptureError: captureResult.error);
+          return;
+        }
+        final ocrResult = await _ocrService.extractText(captureResult.imagePath!);
+        text = ocrResult.text;
       }
-      final ocrResult = await _ocrService.extractText(captureResult.imagePath!);
-      text = ocrResult.text;
     }
 
     final useCloud = _settings.enableCloudLLM && _cloudAnalysis.isConfigured;

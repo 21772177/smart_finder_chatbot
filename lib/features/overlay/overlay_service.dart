@@ -102,6 +102,14 @@ class OverlayService {
     }
   }
 
+  Future<String?> extractUiText() async {
+    try {
+      return await _channel.invokeMethod<String>('extractUiText');
+    } on PlatformException {
+      return null;
+    }
+  }
+
   Future<List<Map<String, String>>> getInstalledApps() async {
     try {
       final raw = await _channel.invokeMethod<List<dynamic>>('getInstalledApps');

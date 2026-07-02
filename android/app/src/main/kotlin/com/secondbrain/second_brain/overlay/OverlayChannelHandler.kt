@@ -66,6 +66,9 @@ class OverlayChannelHandler {
                     "getInstalledApps" -> {
                         result.success(getInstalledApps(activity))
                     }
+                    "extractUiText" -> {
+                        result.success(OverlayAccessibilityService.extractUiTextFromInstance())
+                    }
                     else -> result.notImplemented()
                 }
             }

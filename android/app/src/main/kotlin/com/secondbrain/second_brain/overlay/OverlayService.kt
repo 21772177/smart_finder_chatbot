@@ -11,6 +11,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import com.secondbrain.second_brain.R
@@ -26,6 +27,7 @@ class OverlayAccessibilityService : AccessibilityService() {
             private set
         var flutterEngine: FlutterEngine? = null
         private var instance: OverlayAccessibilityService? = null
+        private var lastUiText: String? = null
 
         fun showBubble(engine: FlutterEngine) {
             flutterEngine = engine
@@ -41,10 +43,15 @@ class OverlayAccessibilityService : AccessibilityService() {
                 isShowing = false
             }
         }
+
+        fun extractUiTextFromInstance(): String? {
+            return instance?.extractUiText()
+        }
     }
 
     private var overlayView: View? = null
     private var windowManager: WindowManager? = null
+    private var instanceLastUiText: String? = null
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -75,6 +82,41 @@ class OverlayAccessibilityService : AccessibilityService() {
     }
 
     override fun onInterrupt() {}
+
+    fun extractUiText(): String? {
+        val root = rootInActiveWindow ?: return instanceLastUiText ?: lastUiText
+        val texts = mutableListOf<String>()
+        collectText(root, texts)
+        root.recycle()
+        val result = texts.joinToString("\n").trim()
+        if (result.isNotEmpty()) {
+            instanceLastUiText = result
+            lastUiText = result
+        }
+        return result.ifEmpty { instanceLastUiText ?: lastUiText }
+    }
+
+    private fun collectText(node: AccessibilityNodeInfo, texts: MutableList<String>) {
+        if (!node.isVisibleToUser) return
+
+        val text = node.text?.toString()?.trim()
+        if (!text.isNullOrEmpty()) {
+            texts.add(text)
+        }
+
+        val contentDesc = node.contentDescription?.toString()?.trim()
+        if (!contentDesc.isNullOrEmpty()) {
+            texts.add(contentDesc)
+        }
+
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i)
+            if (child != null) {
+                collectText(child, texts)
+                child.recycle()
+            }
+        }
+    }
 
     private fun showFloatingBubble() {
         if (overlayView != null) return
