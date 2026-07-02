@@ -4,6 +4,7 @@ import '../capture/screen_capture_service.dart';
 import '../capture/capture_notifier.dart';
 import '../memory/memory_repository.dart';
 import '../analyze/analysis_service.dart';
+import '../settings/settings_service.dart';
 import 'overlay_service.dart';
 
 enum OverlayStatus { inactive, active, permissionDenied, unsupported }
@@ -16,6 +17,8 @@ class OverlayState {
   final bool isCapturing;
   final String? summary;
   final List<String> keywords;
+  final String? currentAppPackage;
+  final String? blockedAppName;
 
   const OverlayState({
     this.status = OverlayStatus.inactive,
@@ -25,6 +28,8 @@ class OverlayState {
     this.isCapturing = false,
     this.summary,
     this.keywords = const [],
+    this.currentAppPackage,
+    this.blockedAppName,
   });
 
   OverlayState copyWith({
@@ -35,6 +40,9 @@ class OverlayState {
     bool? isCapturing,
     String? summary,
     List<String>? keywords,
+    String? currentAppPackage,
+    String? blockedAppName,
+    bool clearBlocked = false,
   }) {
     return OverlayState(
       status: status ?? this.status,
@@ -44,6 +52,8 @@ class OverlayState {
       isCapturing: isCapturing ?? this.isCapturing,
       summary: summary ?? this.summary,
       keywords: keywords ?? this.keywords,
+      currentAppPackage: currentAppPackage ?? this.currentAppPackage,
+      blockedAppName: clearBlocked ? null : (blockedAppName ?? this.blockedAppName),
     );
   }
 }
@@ -54,16 +64,37 @@ class OverlayNotifier extends StateNotifier<OverlayState> {
   final OcrService _ocrService;
   final MemoryRepository _repository;
   final AnalysisService _analysisService;
+  final SettingsService _settings;
 
-  OverlayNotifier(this._service, this._captureService, this._ocrService, this._repository, this._analysisService)
+  OverlayNotifier(this._service, this._captureService, this._ocrService, this._repository, this._analysisService, this._settings)
       : super(const OverlayState()) {
     _service.onTap = _onOverlayTap;
     _service.onSaveCapture = _onSaveCapture;
     _service.onDismissCapture = _onDismissCapture;
+    _service.onAppChanged = _onAppChanged;
     _service.init();
   }
 
+  void _onAppChanged(String package) {
+    final blocked = _settings.blockedApps;
+    final isBlocked = blocked.contains(package);
+    state = state.copyWith(
+      currentAppPackage: package,
+      blockedAppName: isBlocked ? _findAppName(package) : null,
+    );
+  }
+
+  String? _findAppName(String package) {
+    for (final pkg in _settings.blockedApps) {
+      final parts = pkg.split(':');
+      if (parts.length == 2 && parts[0] == package) return parts[1];
+      if (pkg == package) return package;
+    }
+    return package;
+  }
+
   void _onOverlayTap() {
+    if (state.blockedAppName != null) return;
     captureAndAnalyze();
   }
 
@@ -77,6 +108,16 @@ class OverlayNotifier extends StateNotifier<OverlayState> {
 
   Future<void> captureAndAnalyze() async {
     if (state.isCapturing) return;
+
+    final currentPkg = state.currentAppPackage;
+    if (currentPkg != null && _settings.blockedApps.contains(currentPkg)) {
+      state = state.copyWith(
+        isCapturing: false,
+        lastCaptureError: 'Cannot capture: app is blocked',
+      );
+      return;
+    }
+
     state = state.copyWith(isCapturing: true, lastCaptureError: null, lastCaptureText: null, summary: null, keywords: []);
 
     final captureResult = await _captureService.captureCurrentScreen();
@@ -132,6 +173,8 @@ class OverlayNotifier extends StateNotifier<OverlayState> {
       final started = await _service.startOverlay();
       if (started) {
         state = state.copyWith(status: OverlayStatus.active);
+        final pkg = await _service.getCurrentApp();
+        if (pkg != null) _onAppChanged(pkg);
       } else {
         state = state.copyWith(status: OverlayStatus.permissionDenied);
       }
@@ -143,6 +186,11 @@ class OverlayNotifier extends StateNotifier<OverlayState> {
     if (result) {
       state = state.copyWith(accessibilityEnabled: true, status: OverlayStatus.inactive);
     }
+  }
+
+  void refreshBlockedState() {
+    final pkg = state.currentAppPackage;
+    if (pkg != null) _onAppChanged(pkg);
   }
 
   @override
@@ -164,5 +212,6 @@ final overlayStateProvider = StateNotifierProvider<OverlayNotifier, OverlayState
     ref.watch(ocrServiceProvider),
     ref.watch(memoryRepositoryProvider),
     ref.watch(analysisServiceProvider),
+    ref.watch(settingsServiceProvider),
   );
 });

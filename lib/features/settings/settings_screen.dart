@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'settings_service.dart';
+import 'blocked_apps_screen.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -74,9 +75,12 @@ class SettingsScreen extends ConsumerWidget {
                 ListTile(
                   leading: const Icon(Icons.security),
                   title: const Text('Blocked Apps'),
-                  subtitle: const Text('Banking, payment & password apps'),
+                  subtitle: Text('${settings.blockedApps.length} apps blocked'),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () {},
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const BlockedAppsScreen()),
+                  ),
                 ),
                 const Divider(height: 1),
                 ListTile(

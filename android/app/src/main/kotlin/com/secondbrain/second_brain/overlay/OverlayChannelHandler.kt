@@ -2,6 +2,7 @@ package com.secondbrain.second_brain.overlay
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
 import io.flutter.embedding.engine.FlutterEngine
@@ -59,10 +60,33 @@ class OverlayChannelHandler {
                         resultOverlay?.hide()
                         result.success(true)
                     }
+                    "getCurrentApp" -> {
+                        result.success(OverlayAccessibilityService.currentPackage)
+                    }
+                    "getInstalledApps" -> {
+                        result.success(getInstalledApps(activity))
+                    }
                     else -> result.notImplemented()
                 }
             }
         }
+    }
+
+    private fun getInstalledApps(activity: MainActivity): List<Map<String, String>> {
+        val pm = activity.packageManager
+        val intent = Intent(Intent.ACTION_MAIN).apply {
+            addCategory(Intent.CATEGORY_LAUNCHER)
+        }
+        val apps = mutableListOf<Map<String, String>>()
+        val resolved = pm.queryIntentActivities(intent, 0)
+        for (info in resolved) {
+            apps.add(mapOf(
+                "package" to info.activityInfo.packageName,
+                "name" to info.loadLabel(pm).toString()
+            ))
+        }
+        apps.sortBy { it["name"]?.lowercase() }
+        return apps
     }
 
     fun unregister() {

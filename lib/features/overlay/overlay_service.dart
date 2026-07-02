@@ -3,12 +3,14 @@ import '../../core/constants.dart';
 
 typedef OverlayTapCallback = void Function();
 typedef CaptureActionCallback = void Function();
+typedef AppChangedCallback = void Function(String package);
 
 class OverlayService {
   static const _channel = MethodChannel(AppConstants.channelOverlay);
   OverlayTapCallback? onTap;
   CaptureActionCallback? onSaveCapture;
   CaptureActionCallback? onDismissCapture;
+  AppChangedCallback? onAppChanged;
 
   void init() {
     _channel.setMethodCallHandler((call) async {
@@ -19,6 +21,9 @@ class OverlayService {
           onSaveCapture?.call();
         case 'onDismissCapture':
           onDismissCapture?.call();
+        case 'onAppChanged':
+          final pkg = call.arguments as String?;
+          if (pkg != null) onAppChanged?.call(pkg);
       }
       return null;
     });
@@ -86,6 +91,27 @@ class OverlayService {
       await _channel.invokeMethod('hideResult');
     } on PlatformException {
       // fall through
+    }
+  }
+
+  Future<String?> getCurrentApp() async {
+    try {
+      return await _channel.invokeMethod<String>('getCurrentApp');
+    } on PlatformException {
+      return null;
+    }
+  }
+
+  Future<List<Map<String, String>>> getInstalledApps() async {
+    try {
+      final raw = await _channel.invokeMethod<List<dynamic>>('getInstalledApps');
+      if (raw == null) return [];
+      return raw.cast<Map<String, dynamic>>().map((m) => {
+        'package': (m['package'] as String?) ?? '',
+        'name': (m['name'] as String?) ?? '',
+      }).toList();
+    } on PlatformException {
+      return [];
     }
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../core/constants.dart';
 
 class SettingsService {
   final SharedPreferences _prefs;
@@ -21,7 +22,8 @@ class SettingsService {
   bool get enableWhisper => _prefs.getBool('enable_whisper') ?? false;
   set enableWhisper(bool value) => _prefs.setBool('enable_whisper', value);
 
-  List<String> get blockedApps => _prefs.getStringList('blocked_apps') ?? [];
+  List<String> get blockedApps =>
+      _prefs.getStringList('blocked_apps') ?? List.from(AppConstants.blockedApps);
   set blockedApps(List<String> value) => _prefs.setStringList('blocked_apps', value);
 }
 

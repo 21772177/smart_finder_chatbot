@@ -3,6 +3,7 @@ package com.secondbrain.second_brain.overlay
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.PixelFormat
 import android.os.Build
 import android.view.Gravity
@@ -20,6 +21,8 @@ class OverlayAccessibilityService : AccessibilityService() {
         var isConnected = false
             private set
         var isShowing = false
+            private set
+        var currentPackage: String? = null
             private set
         var flutterEngine: FlutterEngine? = null
         private var instance: OverlayAccessibilityService? = null
@@ -58,8 +61,16 @@ class OverlayAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event?.eventType == AccessibilityEvent.TYPE_VIEW_CLICKED) {
-            notifyFlutter("onViewClicked", event.text?.joinToString(""))
+        when (event?.eventType) {
+            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
+                event.packageName?.let { pkg ->
+                    currentPackage = pkg.toString()
+                    notifyFlutter("onAppChanged", pkg.toString())
+                }
+            }
+            AccessibilityEvent.TYPE_VIEW_CLICKED -> {
+                notifyFlutter("onViewClicked", event.text?.joinToString(""))
+            }
         }
     }
 
