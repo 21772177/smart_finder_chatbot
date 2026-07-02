@@ -11,6 +11,8 @@ import com.secondbrain.second_brain.capture.CaptureChannelHandler
 import com.secondbrain.second_brain.llm.LocalLlmChannelHandler
 import com.secondbrain.second_brain.audio.AudioTranscriptionHandler
 import com.secondbrain.second_brain.security.SecurityChannelHandler
+import com.secondbrain.second_brain.service.CleanupWorker
+import com.secondbrain.second_brain.service.WorkerChannelHandler
 
 class MainActivity : FlutterActivity() {
     private val overlayHandler = OverlayChannelHandler()
@@ -18,6 +20,7 @@ class MainActivity : FlutterActivity() {
     private val llmHandler = LocalLlmChannelHandler()
     private val audioHandler = AudioTranscriptionHandler()
     private val securityHandler = SecurityChannelHandler()
+    private val workerHandler = WorkerChannelHandler()
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -26,6 +29,8 @@ class MainActivity : FlutterActivity() {
         llmHandler.register(flutterEngine, this)
         audioHandler.register(flutterEngine, this)
         securityHandler.register(flutterEngine, this)
+        workerHandler.register(flutterEngine, this)
+        CleanupWorker.schedule(this)
     }
 
     override fun onDestroy() {
@@ -34,6 +39,7 @@ class MainActivity : FlutterActivity() {
         llmHandler.unregister()
         audioHandler.unregister()
         securityHandler.unregister()
+        workerHandler.unregister()
         super.onDestroy()
     }
 
