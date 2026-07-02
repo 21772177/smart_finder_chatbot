@@ -188,7 +188,7 @@ class OverlayNotifier extends StateNotifier<OverlayState> {
     if (useCloud) {
       analysis = await _cloudAnalysis.analyze(text, mode: state.analysisMode, targetLanguage: state.targetLanguage);
     } else if (useLocal) {
-      final llmResult = await _localLLM.analyze(text, mode: state.analysisMode);
+      final llmResult = await _localLLM.analyze(text, mode: state.analysisMode, targetLanguage: state.targetLanguage);
       analysis = llmResult != null
           ? AnalysisResult(
               summary: llmResult,
