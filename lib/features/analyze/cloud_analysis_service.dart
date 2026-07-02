@@ -19,15 +19,13 @@ class CloudAnalysisService {
 
   bool get isConfigured => _model != null;
 
-  Future<AnalysisResult> analyze(String text, {String? mode}) async {
+  Future<AnalysisResult> analyze(String text, {String? mode, String? targetLanguage}) async {
     if (!isConfigured) {
       return _localFallback(text);
     }
 
     try {
-      final prompt = mode == 'explain'
-          ? _explainPrompt(text)
-          : _summarizePrompt(text);
+      final prompt = _buildPrompt(text, mode, targetLanguage);
 
       final response = await _model!.generateContent([Content.text(prompt)]);
       final result = response.text ?? '';
@@ -43,12 +41,15 @@ class CloudAnalysisService {
     }
   }
 
-  String _summarizePrompt(String text) {
+  String _buildPrompt(String text, String? mode, String? targetLanguage) {
+    if (mode == 'translate') {
+      final lang = targetLanguage ?? 'English';
+      return 'Translate the following text into $lang. Preserve the original meaning and tone:\n\n$text';
+    }
+    if (mode == 'explain') {
+      return 'Explain the following text in simple terms. Break down complex concepts:\n\n$text';
+    }
     return 'Summarize the following text concisely. Extract key points and main ideas:\n\n$text';
-  }
-
-  String _explainPrompt(String text) {
-    return 'Explain the following text in simple terms. Break down complex concepts:\n\n$text';
   }
 
   List<String> _extractKeywords(String text) {

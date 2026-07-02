@@ -89,6 +89,42 @@ class OverlayScreen extends ConsumerWidget {
                   Text('Simulates what happens when the overlay is tapped.',
                       style: theme.textTheme.bodySmall),
                   const SizedBox(height: 12),
+                  SegmentedButton<String>(
+                    segments: const [
+                      ButtonSegment(value: 'summarize', label: Text('Summarize'), icon: Icon(Icons.summarize, size: 16)),
+                      ButtonSegment(value: 'explain', label: Text('Explain'), icon: Icon(Icons.lightbulb, size: 16)),
+                      ButtonSegment(value: 'translate', label: Text('Translate'), icon: Icon(Icons.translate, size: 16)),
+                    ],
+                    selected: {state.analysisMode ?? 'summarize'},
+                    onSelectionChanged: (selected) => notifier.setAnalysisMode(selected.first),
+                    style: ButtonStyle(
+                      visualDensity: VisualDensity.compact,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                  if (state.analysisMode == 'translate') ...[
+                    const SizedBox(height: 8),
+                    InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: 'Target Language',
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: state.targetLanguage ?? 'English',
+                          isExpanded: true,
+                          isDense: true,
+                          items: ['English', 'Hindi', 'Spanish', 'French', 'German', 'Japanese', 'Chinese', 'Arabic', 'Portuguese', 'Russian', 'Korean']
+                              .map((l) => DropdownMenuItem(value: l, child: Text(l))).toList(),
+                          onChanged: (v) {
+                            if (v != null) notifier.setTargetLanguage(v);
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
                   FilledButton.icon(
                     onPressed: state.isCapturing ? null : () => notifier.captureAndAnalyze(),
                     icon: state.isCapturing
@@ -149,7 +185,7 @@ class OverlayScreen extends ConsumerWidget {
                       ],
                       if (state.summary != null && state.summary!.isNotEmpty) ...[
                         const SizedBox(height: 8),
-                        Text('Summary', style: theme.textTheme.titleSmall),
+                        Text(_resultLabel(state.analysisMode, state.targetLanguage), style: theme.textTheme.titleSmall),
                         const SizedBox(height: 4),
                         Text(state.summary!, style: theme.textTheme.bodyMedium),
                       ],
@@ -202,6 +238,14 @@ class OverlayScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  String _resultLabel(String? mode, String? targetLanguage) {
+    return switch (mode) {
+      'explain' => 'Explanation',
+      'translate' => 'Translation (${targetLanguage ?? "English"})',
+      _ => 'Summary',
+    };
   }
 
   Widget _privacyFeature(ThemeData theme, String text) {

@@ -22,6 +22,7 @@ class OverlayState {
   final String? currentAppPackage;
   final String? blockedAppName;
   final String? analysisMode;
+  final String? targetLanguage;
 
   const OverlayState({
     this.status = OverlayStatus.inactive,
@@ -34,6 +35,7 @@ class OverlayState {
     this.currentAppPackage,
     this.blockedAppName,
     this.analysisMode,
+    this.targetLanguage,
   });
 
   OverlayState copyWith({
@@ -47,6 +49,7 @@ class OverlayState {
     String? currentAppPackage,
     String? blockedAppName,
     String? analysisMode,
+    String? targetLanguage,
     bool clearBlocked = false,
     bool clearAnalysisMode = false,
   }) {
@@ -61,6 +64,7 @@ class OverlayState {
       currentAppPackage: currentAppPackage ?? this.currentAppPackage,
       blockedAppName: clearBlocked ? null : (blockedAppName ?? this.blockedAppName),
       analysisMode: clearAnalysisMode ? null : (analysisMode ?? this.analysisMode),
+      targetLanguage: targetLanguage ?? this.targetLanguage,
     );
   }
 }
@@ -151,7 +155,7 @@ class OverlayNotifier extends StateNotifier<OverlayState> {
 
     AnalysisResult analysis;
     if (useCloud) {
-      analysis = await _cloudAnalysis.analyze(text, mode: state.analysisMode);
+      analysis = await _cloudAnalysis.analyze(text, mode: state.analysisMode, targetLanguage: state.targetLanguage);
     } else if (useLocal) {
       final llmResult = await _localLLM.analyze(text, mode: state.analysisMode);
       analysis = llmResult != null
@@ -174,13 +178,22 @@ class OverlayNotifier extends StateNotifier<OverlayState> {
     );
 
     if (text.isNotEmpty) {
-      final displayText = '${analysis.keywords.take(5).join(", ")}\n\n${analysis.summary}';
+      final modeLabel = switch (state.analysisMode) {
+        'explain' => 'Explanation',
+        'translate' => 'Translation (${state.targetLanguage ?? "English"})',
+        _ => 'Summary',
+      };
+      final displayText = '[$modeLabel]\n${analysis.keywords.take(5).join(", ")}\n\n${analysis.summary}';
       _service.showResult(displayText);
     }
   }
 
   void setAnalysisMode(String? mode) {
     state = state.copyWith(analysisMode: mode);
+  }
+
+  void setTargetLanguage(String? lang) {
+    state = state.copyWith(targetLanguage: lang);
   }
 
   void dismissLastCapture() {
