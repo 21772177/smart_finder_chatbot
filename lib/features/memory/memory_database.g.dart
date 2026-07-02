@@ -68,6 +68,17 @@ class $MemoriesTable extends Memories with TableInfo<$MemoriesTable, Memory> {
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _embeddingMeta = const VerificationMeta(
+    'embedding',
+  );
+  @override
+  late final GeneratedColumn<String> embedding = GeneratedColumn<String>(
+    'embedding',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -98,6 +109,7 @@ class $MemoriesTable extends Memories with TableInfo<$MemoriesTable, Memory> {
     sourceApp,
     ocrText,
     tags,
+    embedding,
     createdAt,
     updatedAt,
   ];
@@ -154,6 +166,14 @@ class $MemoriesTable extends Memories with TableInfo<$MemoriesTable, Memory> {
     } else if (isInserting) {
       context.missing(_tagsMeta);
     }
+    if (data.containsKey('embedding')) {
+      context.handle(
+        _embeddingMeta,
+        embedding.isAcceptableOrUnknown(data['embedding']!, _embeddingMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_embeddingMeta);
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -203,6 +223,10 @@ class $MemoriesTable extends Memories with TableInfo<$MemoriesTable, Memory> {
         DriftSqlType.string,
         data['${effectivePrefix}tags'],
       )!,
+      embedding: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}embedding'],
+      )!,
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -227,6 +251,7 @@ class Memory extends DataClass implements Insertable<Memory> {
   final String? sourceApp;
   final String? ocrText;
   final String tags;
+  final String embedding;
   final DateTime createdAt;
   final DateTime updatedAt;
   const Memory({
@@ -236,6 +261,7 @@ class Memory extends DataClass implements Insertable<Memory> {
     this.sourceApp,
     this.ocrText,
     required this.tags,
+    required this.embedding,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -252,6 +278,7 @@ class Memory extends DataClass implements Insertable<Memory> {
       map['ocr_text'] = Variable<String>(ocrText);
     }
     map['tags'] = Variable<String>(tags);
+    map['embedding'] = Variable<String>(embedding);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
@@ -269,6 +296,7 @@ class Memory extends DataClass implements Insertable<Memory> {
           ? const Value.absent()
           : Value(ocrText),
       tags: Value(tags),
+      embedding: Value(embedding),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
     );
@@ -286,6 +314,7 @@ class Memory extends DataClass implements Insertable<Memory> {
       sourceApp: serializer.fromJson<String?>(json['sourceApp']),
       ocrText: serializer.fromJson<String?>(json['ocrText']),
       tags: serializer.fromJson<String>(json['tags']),
+      embedding: serializer.fromJson<String>(json['embedding']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
@@ -300,6 +329,7 @@ class Memory extends DataClass implements Insertable<Memory> {
       'sourceApp': serializer.toJson<String?>(sourceApp),
       'ocrText': serializer.toJson<String?>(ocrText),
       'tags': serializer.toJson<String>(tags),
+      'embedding': serializer.toJson<String>(embedding),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
@@ -312,6 +342,7 @@ class Memory extends DataClass implements Insertable<Memory> {
     Value<String?> sourceApp = const Value.absent(),
     Value<String?> ocrText = const Value.absent(),
     String? tags,
+    String? embedding,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) => Memory(
@@ -321,6 +352,7 @@ class Memory extends DataClass implements Insertable<Memory> {
     sourceApp: sourceApp.present ? sourceApp.value : this.sourceApp,
     ocrText: ocrText.present ? ocrText.value : this.ocrText,
     tags: tags ?? this.tags,
+    embedding: embedding ?? this.embedding,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
@@ -332,6 +364,7 @@ class Memory extends DataClass implements Insertable<Memory> {
       sourceApp: data.sourceApp.present ? data.sourceApp.value : this.sourceApp,
       ocrText: data.ocrText.present ? data.ocrText.value : this.ocrText,
       tags: data.tags.present ? data.tags.value : this.tags,
+      embedding: data.embedding.present ? data.embedding.value : this.embedding,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -346,6 +379,7 @@ class Memory extends DataClass implements Insertable<Memory> {
           ..write('sourceApp: $sourceApp, ')
           ..write('ocrText: $ocrText, ')
           ..write('tags: $tags, ')
+          ..write('embedding: $embedding, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -360,6 +394,7 @@ class Memory extends DataClass implements Insertable<Memory> {
     sourceApp,
     ocrText,
     tags,
+    embedding,
     createdAt,
     updatedAt,
   );
@@ -373,6 +408,7 @@ class Memory extends DataClass implements Insertable<Memory> {
           other.sourceApp == this.sourceApp &&
           other.ocrText == this.ocrText &&
           other.tags == this.tags &&
+          other.embedding == this.embedding &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
 }
@@ -384,6 +420,7 @@ class MemoriesCompanion extends UpdateCompanion<Memory> {
   final Value<String?> sourceApp;
   final Value<String?> ocrText;
   final Value<String> tags;
+  final Value<String> embedding;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<int> rowid;
@@ -394,6 +431,7 @@ class MemoriesCompanion extends UpdateCompanion<Memory> {
     this.sourceApp = const Value.absent(),
     this.ocrText = const Value.absent(),
     this.tags = const Value.absent(),
+    this.embedding = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -405,6 +443,7 @@ class MemoriesCompanion extends UpdateCompanion<Memory> {
     this.sourceApp = const Value.absent(),
     this.ocrText = const Value.absent(),
     required String tags,
+    required String embedding,
     required DateTime createdAt,
     required DateTime updatedAt,
     this.rowid = const Value.absent(),
@@ -412,6 +451,7 @@ class MemoriesCompanion extends UpdateCompanion<Memory> {
        title = Value(title),
        content = Value(content),
        tags = Value(tags),
+       embedding = Value(embedding),
        createdAt = Value(createdAt),
        updatedAt = Value(updatedAt);
   static Insertable<Memory> custom({
@@ -421,6 +461,7 @@ class MemoriesCompanion extends UpdateCompanion<Memory> {
     Expression<String>? sourceApp,
     Expression<String>? ocrText,
     Expression<String>? tags,
+    Expression<String>? embedding,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<int>? rowid,
@@ -432,6 +473,7 @@ class MemoriesCompanion extends UpdateCompanion<Memory> {
       if (sourceApp != null) 'source_app': sourceApp,
       if (ocrText != null) 'ocr_text': ocrText,
       if (tags != null) 'tags': tags,
+      if (embedding != null) 'embedding': embedding,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
@@ -445,6 +487,7 @@ class MemoriesCompanion extends UpdateCompanion<Memory> {
     Value<String?>? sourceApp,
     Value<String?>? ocrText,
     Value<String>? tags,
+    Value<String>? embedding,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<int>? rowid,
@@ -456,6 +499,7 @@ class MemoriesCompanion extends UpdateCompanion<Memory> {
       sourceApp: sourceApp ?? this.sourceApp,
       ocrText: ocrText ?? this.ocrText,
       tags: tags ?? this.tags,
+      embedding: embedding ?? this.embedding,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
@@ -483,6 +527,9 @@ class MemoriesCompanion extends UpdateCompanion<Memory> {
     if (tags.present) {
       map['tags'] = Variable<String>(tags.value);
     }
+    if (embedding.present) {
+      map['embedding'] = Variable<String>(embedding.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -504,6 +551,7 @@ class MemoriesCompanion extends UpdateCompanion<Memory> {
           ..write('sourceApp: $sourceApp, ')
           ..write('ocrText: $ocrText, ')
           ..write('tags: $tags, ')
+          ..write('embedding: $embedding, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
@@ -531,6 +579,7 @@ typedef $$MemoriesTableCreateCompanionBuilder =
       Value<String?> sourceApp,
       Value<String?> ocrText,
       required String tags,
+      required String embedding,
       required DateTime createdAt,
       required DateTime updatedAt,
       Value<int> rowid,
@@ -543,6 +592,7 @@ typedef $$MemoriesTableUpdateCompanionBuilder =
       Value<String?> sourceApp,
       Value<String?> ocrText,
       Value<String> tags,
+      Value<String> embedding,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -584,6 +634,11 @@ class $$MemoriesTableFilterComposer
 
   ColumnFilters<String> get tags => $composableBuilder(
     column: $table.tags,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get embedding => $composableBuilder(
+    column: $table.embedding,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -637,6 +692,11 @@ class $$MemoriesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get embedding => $composableBuilder(
+    column: $table.embedding,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -674,6 +734,9 @@ class $$MemoriesTableAnnotationComposer
 
   GeneratedColumn<String> get tags =>
       $composableBuilder(column: $table.tags, builder: (column) => column);
+
+  GeneratedColumn<String> get embedding =>
+      $composableBuilder(column: $table.embedding, builder: (column) => column);
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -716,6 +779,7 @@ class $$MemoriesTableTableManager
                 Value<String?> sourceApp = const Value.absent(),
                 Value<String?> ocrText = const Value.absent(),
                 Value<String> tags = const Value.absent(),
+                Value<String> embedding = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -726,6 +790,7 @@ class $$MemoriesTableTableManager
                 sourceApp: sourceApp,
                 ocrText: ocrText,
                 tags: tags,
+                embedding: embedding,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -738,6 +803,7 @@ class $$MemoriesTableTableManager
                 Value<String?> sourceApp = const Value.absent(),
                 Value<String?> ocrText = const Value.absent(),
                 required String tags,
+                required String embedding,
                 required DateTime createdAt,
                 required DateTime updatedAt,
                 Value<int> rowid = const Value.absent(),
@@ -748,6 +814,7 @@ class $$MemoriesTableTableManager
                 sourceApp: sourceApp,
                 ocrText: ocrText,
                 tags: tags,
+                embedding: embedding,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,

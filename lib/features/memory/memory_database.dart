@@ -7,10 +7,13 @@ import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqlite3/sqlite3.dart' as sqlite3;
 import 'memory_model.dart';
+import 'embedding_service.dart';
 
 part 'memory_database.g.dart';
 
 const _kDbKey = 'second_brain_db_key';
+
+final _embedder = EmbeddingService();
 
 class Memories extends Table {
   TextColumn get id => text()();
@@ -19,6 +22,7 @@ class Memories extends Table {
   TextColumn? get sourceApp => text().nullable()();
   TextColumn? get ocrText => text().nullable()();
   TextColumn get tags => text()();
+  TextColumn get embedding => text()();
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();
 
@@ -31,9 +35,24 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+    onCreate: (m) async {
+      await m.createAll();
+    },
+    onUpgrade: (m, from, to) async {
+      if (from < 2) {
+        await m.addColumn(memories, memories.embedding);
+      }
+    },
+  );
 
   Future<void> insertMemoryEntry(MemoryEntry entry) async {
+    final text = '${entry.title} ${entry.content} ${entry.ocrText ?? ''} ${entry.tags.join(' ')}';
+    final embedding = _embedder.vectorToJson(_embedder.embed(text));
+
     await into(memories).insertOnConflictUpdate(MemoriesCompanion(
       id: Value(entry.id),
       title: Value(entry.title),
@@ -41,6 +60,7 @@ class AppDatabase extends _$AppDatabase {
       sourceApp: Value(entry.sourceApp),
       ocrText: Value(entry.ocrText),
       tags: Value(jsonEncode(entry.tags)),
+      embedding: Value(embedding),
       createdAt: Value(entry.createdAt),
       updatedAt: Value(entry.updatedAt),
     ));
@@ -60,46 +80,24 @@ class AppDatabase extends _$AppDatabase {
   }
 
   Future<List<MemorySearchResult>> search(String query) async {
-    final queryTerms = query.toLowerCase().split(RegExp(r'\s+')).where((w) => w.length > 2).toList();
-    if (queryTerms.isEmpty) return [];
-
     final rows = await select(memories).get();
+    if (rows.isEmpty) return [];
+
+    final queryEmbedding = _embedder.embed(query);
     final results = <MemorySearchResult>[];
 
     for (final row in rows) {
-      final entry = _rowToEntry(row);
-      final score = _score(entry, queryTerms);
-      if (score > 0) {
-        results.add(MemorySearchResult(memoryEntry: entry, score: score));
+      final raw = row.embedding;
+      if (raw.isEmpty) continue;
+      final vec = _embedder.jsonToVector(raw);
+      final score = _embedder.cosineSimilarity(vec, queryEmbedding);
+      if (score > 0.05) {
+        results.add(MemorySearchResult(memoryEntry: _rowToEntry(row), score: score));
       }
     }
 
     results.sort((a, b) => b.score.compareTo(a.score));
     return results.take(20).toList();
-  }
-
-  double _score(MemoryEntry entry, List<String> queryTerms) {
-    final text = '${entry.title} ${entry.content} ${entry.ocrText ?? ''} ${entry.tags.join(' ')}'.toLowerCase();
-    final words = text.split(RegExp(r'\W+')).where((w) => w.length > 2).toList();
-    final total = words.length;
-
-    if (total == 0) return 0;
-
-    double score = 0;
-    for (final term in queryTerms) {
-      final count = words.where((w) => w == term).length;
-      if (count > 0) {
-        final tf = count / total;
-        if (entry.title.toLowerCase().contains(term)) {
-          score += tf * 3;
-        } else if (entry.tags.join(' ').toLowerCase().contains(term)) {
-          score += tf * 2;
-        } else {
-          score += tf;
-        }
-      }
-    }
-    return score / queryTerms.length;
   }
 
   MemoryEntry _rowToEntry(Memory row) {
