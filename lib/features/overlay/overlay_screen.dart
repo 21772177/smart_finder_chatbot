@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../capture/capture_notifier.dart';
-import '../memory/memory_repository.dart';
 import 'overlay_notifier.dart';
 
 class OverlayScreen extends ConsumerWidget {
@@ -9,18 +7,13 @@ class OverlayScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final overlayState = ref.watch(overlayStateProvider);
-    final captureState = ref.watch(captureStateProvider);
+    final state = ref.watch(overlayStateProvider);
     final notifier = ref.read(overlayStateProvider.notifier);
-    final captureNotifier = ref.read(captureStateProvider.notifier);
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Second Brain'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('Second Brain'), centerTitle: true),
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: [
@@ -45,30 +38,26 @@ class OverlayScreen extends ConsumerWidget {
                 children: [
                   SwitchListTile(
                     title: const Text('Accessibility Service'),
-                    subtitle: Text(
-                      overlayState.accessibilityEnabled ? 'Granted' : 'Required for overlay',
-                    ),
-                    value: overlayState.accessibilityEnabled,
+                    subtitle: Text(state.accessibilityEnabled ? 'Granted' : 'Required for overlay'),
+                    value: state.accessibilityEnabled,
                     onChanged: (_) => notifier.requestPermission(),
                   ),
                   const Divider(),
                   SwitchListTile(
                     title: const Text('Floating Overlay'),
                     subtitle: Text(
-                      overlayState.status == OverlayStatus.active
+                      state.status == OverlayStatus.active
                           ? 'Tap the bubble to analyze screen'
                           : 'Start to enable overlay',
                     ),
-                    value: overlayState.status == OverlayStatus.active,
-                    onChanged: overlayState.accessibilityEnabled
-                        ? (_) => notifier.toggleOverlay()
-                        : null,
+                    value: state.status == OverlayStatus.active,
+                    onChanged: state.accessibilityEnabled ? (_) => notifier.toggleOverlay() : null,
                   ),
                 ],
               ),
             ),
           ),
-          if (overlayState.status == OverlayStatus.permissionDenied)
+          if (state.status == OverlayStatus.permissionDenied)
             Padding(
               padding: const EdgeInsets.only(top: 16),
               child: Card(
@@ -80,10 +69,8 @@ class OverlayScreen extends ConsumerWidget {
                       Icon(Icons.warning, color: colorScheme.error),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: Text(
-                          'Permission denied. Enable Accessibility Service in Settings.',
-                          style: TextStyle(color: colorScheme.onErrorContainer),
-                        ),
+                        child: Text('Permission denied. Enable Accessibility Service in Settings.',
+                            style: TextStyle(color: colorScheme.onErrorContainer)),
                       ),
                     ],
                   ),
@@ -97,101 +84,115 @@ class OverlayScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Manual Capture', style: theme.textTheme.titleMedium),
+                  Text('Manual Capture Test', style: theme.textTheme.titleMedium),
                   const SizedBox(height: 4),
-                  Text('Test screen capture and OCR', style: theme.textTheme.bodySmall),
+                  Text('Simulates what happens when the overlay is tapped.',
+                      style: theme.textTheme.bodySmall),
                   const SizedBox(height: 12),
                   FilledButton.icon(
-                    onPressed: captureState.phase == CapturePhase.capturing ||
-                             captureState.phase == CapturePhase.processing
-                        ? null
-                        : () => captureNotifier.captureAndAnalyze(),
-                    icon: const Icon(Icons.camera_alt),
-                    label: const Text('Capture & Analyze'),
+                    onPressed: state.isCapturing ? null : () => notifier.captureAndAnalyze(),
+                    icon: state.isCapturing
+                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.camera_alt),
+                    label: Text(state.isCapturing ? 'Analyzing...' : 'Capture & Analyze'),
                   ),
                 ],
               ),
             ),
           ),
-          if (captureState.phase == CapturePhase.capturing)
+          if (state.isCapturing)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 16),
               child: LinearProgressIndicator(),
             ),
-          if (captureState.phase == CapturePhase.processing)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 16),
-              child: Column(
-                children: [
-                  LinearProgressIndicator(),
-                  SizedBox(height: 8),
-                  Text('Processing with AI...'),
-                ],
-              ),
-            ),
-          if (captureState.phase == CapturePhase.done) ...[
-            const SizedBox(height: 16),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('OCR Result', style: theme.textTheme.titleMedium),
-                    const SizedBox(height: 8),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: colorScheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: SelectableText(
-                        captureState.ocrText?.isNotEmpty == true
-                            ? captureState.ocrText!
-                            : 'No text detected',
-                        style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    FilledButton.icon(
-                      onPressed: () async {
-                        final repo = ref.read(memoryRepositoryProvider);
-                        await repo.saveMemoryEntry(
-                          title: 'Screen ${DateTime.now().toString().substring(0, 19)}',
-                          content: captureState.ocrText ?? '',
-                          ocrText: captureState.ocrText,
-                          tags: ['capture'],
-                        );
-                        captureNotifier.reset();
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Saved to memory!')),
-                          );
-                        }
-                      },
-                      icon: const Icon(Icons.save),
-                      label: const Text('Save to Memory'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-          if (captureState.phase == CapturePhase.error)
+          if (state.lastCaptureError != null)
             Padding(
               padding: const EdgeInsets.only(top: 16),
               child: Card(
                 color: colorScheme.errorContainer,
                 child: Padding(
                   padding: const EdgeInsets.all(16),
-                  child: Text('Error: ${captureState.error}',
-                    style: TextStyle(color: colorScheme.onErrorContainer)),
+                  child: Text('Error: ${state.lastCaptureError}',
+                      style: TextStyle(color: colorScheme.onErrorContainer)),
+                ),
+              ),
+            ),
+          if (!state.isCapturing && state.lastCaptureText != null && state.lastCaptureText!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 16),
+              child: Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.auto_awesome, size: 20, color: colorScheme.primary),
+                          const SizedBox(width: 8),
+                          Text('Analysis', style: theme.textTheme.titleMedium),
+                        ],
+                      ),
+                      if (state.keywords.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          children: state.keywords.take(10).map((kw) =>
+                            Chip(
+                              label: Text(kw, style: const TextStyle(fontSize: 12)),
+                              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              visualDensity: VisualDensity.compact,
+                            ),
+                          ).toList(),
+                        ),
+                      ],
+                      if (state.summary != null && state.summary!.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text('Summary', style: theme.textTheme.titleSmall),
+                        const SizedBox(height: 4),
+                        Text(state.summary!, style: theme.textTheme.bodyMedium),
+                      ],
+                      const SizedBox(height: 8),
+                      Text('Raw Text', style: theme.textTheme.titleSmall),
+                      const SizedBox(height: 4),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: SelectableText(
+                          state.lastCaptureText!,
+                          style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+                          maxLines: 5,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          FilledButton.icon(
+                            onPressed: () => notifier.saveLastCapture(),
+                            icon: const Icon(Icons.save),
+                            label: const Text('Save'),
+                          ),
+                          const SizedBox(width: 8),
+                          OutlinedButton.icon(
+                            onPressed: () => notifier.dismissLastCapture(),
+                            icon: const Icon(Icons.close),
+                            label: const Text('Dismiss'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
           const SizedBox(height: 24),
-          Text('Privacy First', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
+          Text('Privacy First',
+              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           _privacyFeature(theme, '100% on-device processing'),
           _privacyFeature(theme, 'No cloud storage by default'),

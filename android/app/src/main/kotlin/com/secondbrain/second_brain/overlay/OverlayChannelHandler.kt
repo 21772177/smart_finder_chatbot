@@ -11,6 +11,7 @@ import com.secondbrain.second_brain.MainActivity
 class OverlayChannelHandler {
     private val channel = "com.secondbrain/overlay"
     private var methodChannel: MethodChannel? = null
+    private var resultOverlay: ResultOverlay? = null
 
     fun register(engine: FlutterEngine, activity: MainActivity) {
         OverlayAccessibilityService.flutterEngine = engine
@@ -35,6 +36,7 @@ class OverlayChannelHandler {
                     }
                     "stopOverlay" -> {
                         OverlayAccessibilityService.hideBubble()
+                        resultOverlay?.hide()
                         result.success(true)
                     }
                     "isOverlayActive" -> {
@@ -48,6 +50,15 @@ class OverlayChannelHandler {
                     "isAccessibilityEnabled" -> {
                         result.success(isAccessibilityServiceEnabled(activity))
                     }
+                    "showResult" -> {
+                        val text = call.argument<String>("text") ?: ""
+                        showResultOverlay(activity, text, engine)
+                        result.success(true)
+                    }
+                    "hideResult" -> {
+                        resultOverlay?.hide()
+                        result.success(true)
+                    }
                     else -> result.notImplemented()
                 }
             }
@@ -56,6 +67,24 @@ class OverlayChannelHandler {
 
     fun unregister() {
         methodChannel?.setMethodCallHandler(null)
+        resultOverlay?.hide()
+    }
+
+    private fun showResultOverlay(activity: MainActivity, text: String, engine: FlutterEngine) {
+        resultOverlay?.hide()
+        resultOverlay = ResultOverlay(activity)
+
+        val channel = MethodChannel(engine.dartExecutor.binaryMessenger, "com.secondbrain/overlay")
+
+        resultOverlay?.show(
+            text = text,
+            onSave = {
+                channel.invokeMethod("onSaveCapture", null)
+            },
+            onDismiss = {
+                channel.invokeMethod("onDismissCapture", null)
+            }
+        )
     }
 
     private fun hasOverlayPermission(context: Context): Boolean {
