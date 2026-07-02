@@ -2,10 +2,13 @@ package com.secondbrain.second_brain.overlay
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.SharedPreferences
 import android.graphics.PixelFormat
 import android.os.Build
+import android.preference.PreferenceManager
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
@@ -29,6 +32,11 @@ class OverlayAccessibilityService : AccessibilityService() {
         private var instance: OverlayAccessibilityService? = null
         private var lastUiText: String? = null
 
+        // Settings
+        var scanOnLike = true
+        var scanOnSave = true
+        var enableBuffer = true
+
         fun showBubble(engine: FlutterEngine) {
             flutterEngine = engine
             instance?.let { svc ->
@@ -47,24 +55,42 @@ class OverlayAccessibilityService : AccessibilityService() {
         fun extractUiTextFromInstance(): String? {
             return instance?.extractUiText()
         }
+
+        fun getBufferFromInstance(): String? {
+            return instance?.getBuffer()
+        }
+
+        fun clearBufferFromInstance() {
+            instance?.clearBuffer()
+        }
+
+        private fun loadSettings(context: Context) {
+            val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+            scanOnLike = prefs.getBoolean("scan_on_like", true)
+            scanOnSave = prefs.getBoolean("scan_on_save", true)
+            enableBuffer = prefs.getBoolean("enable_buffer", true)
+        }
     }
 
     private var overlayView: View? = null
     private var windowManager: WindowManager? = null
     private var instanceLastUiText: String? = null
+    private var textBuffer = mutableListOf<String>()
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         val info = AccessibilityServiceInfo().apply {
             eventTypes = AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED or
                     AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or
-                    AccessibilityEvent.TYPE_VIEW_CLICKED
+                    AccessibilityEvent.TYPE_VIEW_CLICKED or
+                    AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED
             feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
             notificationTimeout = 100
         }
         serviceInfo = info
         instance = this
         isConnected = true
+        loadSettings(this)
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -76,12 +102,59 @@ class OverlayAccessibilityService : AccessibilityService() {
                 }
             }
             AccessibilityEvent.TYPE_VIEW_CLICKED -> {
-                notifyFlutter("onViewClicked", event.text?.joinToString(""))
+                val text = event.text?.joinToString("")
+                notifyFlutter("onViewClicked", text)
+                checkLikeSaveClick(event)
+            }
+            AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED -> {
+                if (enableBuffer) {
+                    handleTextChange(event)
+                }
             }
         }
     }
 
     override fun onInterrupt() {}
+
+    private fun checkLikeSaveClick(event: AccessibilityEvent) {
+        val source = event.source ?: return
+        val className = source.className?.toString() ?: ""
+        val text = event.text?.joinToString("")?.lowercase() ?: ""
+        val contentDesc = source.contentDescription?.toString()?.lowercase() ?: ""
+
+        val isLike = text.contains("like") || contentDesc.contains("like") ||
+            className.contains("Like") || className.contains("like")
+        val isSave = text.contains("save") || contentDesc.contains("save") ||
+            className.contains("Save") || className.contains("save")
+
+        if ((isLike && scanOnLike) || (isSave && scanOnSave)) {
+            notifyFlutter("onOverlayTap", null)
+        }
+        source.recycle()
+    }
+
+    private fun handleTextChange(event: AccessibilityEvent) {
+        val source = event.source ?: return
+        val textList = event.text
+        if (textList == null) {
+            source.recycle()
+            return
+        }
+        val text = textList.joinToString("").trim()
+        if (text.isNotEmpty()) {
+            textBuffer.add(text)
+            if (textBuffer.size > 50) textBuffer.removeAt(0)
+        }
+        source.recycle()
+    }
+
+    fun getBuffer(): String {
+        return textBuffer.joinToString(" ")
+    }
+
+    fun clearBuffer() {
+        textBuffer.clear()
+    }
 
     fun extractUiText(): String? {
         val root = rootInActiveWindow ?: return instanceLastUiText ?: lastUiText

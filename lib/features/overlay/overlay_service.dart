@@ -110,6 +110,22 @@ class OverlayService {
     }
   }
 
+  Future<String?> getBuffer() async {
+    try {
+      return await _channel.invokeMethod<String>('getBuffer');
+    } on PlatformException {
+      return null;
+    }
+  }
+
+  Future<void> clearBuffer() async {
+    try {
+      await _channel.invokeMethod('clearBuffer');
+    } on PlatformException {
+      // fall through
+    }
+  }
+
   Future<List<Map<String, String>>> getInstalledApps() async {
     try {
       final raw = await _channel.invokeMethod<List<dynamic>>('getInstalledApps');

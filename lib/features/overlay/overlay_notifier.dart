@@ -6,6 +6,7 @@ import '../memory/memory_repository.dart';
 import '../analyze/analysis_service.dart';
 import '../analyze/cloud_analysis_service.dart';
 import '../analyze/local_llm_service.dart';
+import '../audio/audio_transcription_service.dart';
 import '../settings/settings_service.dart';
 import 'overlay_service.dart';
 
@@ -77,6 +78,7 @@ class OverlayNotifier extends StateNotifier<OverlayState> {
   final AnalysisService _analysisService;
   final CloudAnalysisService _cloudAnalysis;
   final LocalLLMService _localLLM;
+  final AudioTranscriptionService _audioService;
   final SettingsService _settings;
 
   OverlayNotifier(
@@ -87,6 +89,7 @@ class OverlayNotifier extends StateNotifier<OverlayState> {
     this._analysisService,
     this._cloudAnalysis,
     this._localLLM,
+    this._audioService,
     this._settings,
   ) : super(const OverlayState()) {
     _service.onTap = _onOverlayTap;
@@ -156,6 +159,25 @@ class OverlayNotifier extends StateNotifier<OverlayState> {
         }
         final ocrResult = await _ocrService.extractText(captureResult.imagePath!);
         text = ocrResult.text;
+      }
+    }
+
+    // Prepend live buffer if enabled
+    if (_settings.enableBuffer) {
+      final buffer = await _service.getBuffer();
+      if (buffer != null && buffer.isNotEmpty) {
+        text = '$buffer\n\n$text';
+      }
+    }
+
+    // Use on-device transcription if Whisper is enabled and text is empty
+    if (text.trim().isEmpty && _settings.enableWhisper) {
+      final hasPerm = await _audioService.checkPermission();
+      if (hasPerm) {
+        final transcript = await _audioService.startListening();
+        if (transcript != null && transcript.isNotEmpty) {
+          text = transcript;
+        }
       }
     }
 
@@ -276,6 +298,7 @@ final overlayStateProvider = StateNotifierProvider<OverlayNotifier, OverlayState
     ref.watch(analysisServiceProvider),
     ref.watch(cloudAnalysisServiceProvider),
     ref.watch(localLlmServiceProvider),
+    ref.watch(audioTranscriptionServiceProvider),
     ref.watch(settingsServiceProvider),
   );
 });
