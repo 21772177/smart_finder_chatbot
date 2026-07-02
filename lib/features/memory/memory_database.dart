@@ -50,6 +50,10 @@ class AppDatabase extends _$AppDatabase {
     await (delete(memories)..where((t) => t.id.equals(id))).go();
   }
 
+  Future<void> deleteAllEntries() async {
+    await delete(memories).go();
+  }
+
   Future<List<MemoryEntry>> getAllEntries() async {
     final rows = await select(memories).get();
     return rows.map(_rowToEntry).toList();

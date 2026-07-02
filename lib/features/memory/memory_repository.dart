@@ -35,6 +35,8 @@ class MemoryRepository {
   Future<List<MemorySearchResult>> search(String query) => _db.search(query);
 
   Future<void> deleteEntry(String id) => _db.deleteMemoryEntry(id);
+
+  Future<void> deleteAllEntries() => _db.deleteAllEntries();
 }
 
 final databaseProvider = Provider<AppDatabase>((ref) => AppDatabase());

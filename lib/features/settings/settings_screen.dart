@@ -1,5 +1,10 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:intl/intl.dart';
+import '../memory/memory_repository.dart';
 import 'settings_service.dart';
 import 'blocked_apps_screen.dart';
 
@@ -87,14 +92,14 @@ class SettingsScreen extends ConsumerWidget {
                   leading: const Icon(Icons.download),
                   title: const Text('Export Data'),
                   subtitle: const Text('Download all your memories'),
-                  onTap: () {},
+                  onTap: () => _exportData(context, ref),
                 ),
                 const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.delete_forever, color: Colors.red),
                   title: Text('Delete All Data', style: TextStyle(color: theme.colorScheme.error)),
                   subtitle: const Text('Permanently erase all memories'),
-                  onTap: () {},
+                  onTap: () => _deleteAllData(context, ref),
                 ),
               ],
             ),
@@ -111,5 +116,78 @@ class SettingsScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _exportData(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final repo = ref.read(memoryRepositoryProvider);
+    final entries = await repo.getAllEntries();
+
+    if (entries.isEmpty) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('No memories to export')),
+      );
+      return;
+    }
+
+    final data = entries.map((e) => {
+      'id': e.id,
+      'title': e.title,
+      'content': e.content,
+      'sourceApp': e.sourceApp,
+      'ocrText': e.ocrText,
+      'tags': e.tags,
+      'createdAt': e.createdAt.toIso8601String(),
+      'updatedAt': e.updatedAt.toIso8601String(),
+    }).toList();
+
+    final json = const JsonEncoder.withIndent('  ').convert(data);
+
+    final dir = await getApplicationDocumentsDirectory();
+    final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+    final file = File('${dir.path}/second_brain_export_$timestamp.json');
+    await file.writeAsString(json);
+
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text('Exported ${entries.length} memories to ${file.path}'),
+        duration: const Duration(seconds: 4),
+      ),
+    );
+  }
+
+  Future<void> _deleteAllData(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete All Data'),
+        content: const Text(
+          'This will permanently erase all your saved memories. '
+          'This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete Everything'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    await ref.read(memoryRepositoryProvider).deleteAllEntries();
+    ref.invalidate(memoryRepositoryProvider);
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('All memories deleted')),
+      );
+    }
   }
 }
