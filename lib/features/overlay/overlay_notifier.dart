@@ -127,7 +127,7 @@ class OverlayNotifier extends StateNotifier<OverlayState> {
     state = state.copyWith(lastCaptureText: null, lastCaptureError: null, summary: null, keywords: []);
   }
 
-  Future<void> captureAndAnalyze() async {
+  Future<void> captureAndAnalyze({String? overrideText}) async {
     if (state.isCapturing) return;
 
     final currentPkg = state.currentAppPackage;
@@ -141,14 +141,18 @@ class OverlayNotifier extends StateNotifier<OverlayState> {
 
     state = state.copyWith(isCapturing: true, lastCaptureError: null, lastCaptureText: null, summary: null, keywords: []);
 
-    final captureResult = await _captureService.captureCurrentScreen();
-    if (!captureResult.isSuccess) {
-      state = state.copyWith(isCapturing: false, lastCaptureError: captureResult.error);
-      return;
+    String text;
+    if (overrideText != null) {
+      text = overrideText;
+    } else {
+      final captureResult = await _captureService.captureCurrentScreen();
+      if (!captureResult.isSuccess) {
+        state = state.copyWith(isCapturing: false, lastCaptureError: captureResult.error);
+        return;
+      }
+      final ocrResult = await _ocrService.extractText(captureResult.imagePath!);
+      text = ocrResult.text;
     }
-
-    final ocrResult = await _ocrService.extractText(captureResult.imagePath!);
-    final text = ocrResult.text;
 
     final useCloud = _settings.enableCloudLLM && _cloudAnalysis.isConfigured;
     final useLocal = _settings.enableLocalLLM && _localLLM.isReady;

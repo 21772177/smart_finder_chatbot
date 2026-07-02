@@ -1,5 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide OverlayState;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../audio/audio_transcription_service.dart';
 import 'overlay_notifier.dart';
 
 class OverlayScreen extends ConsumerWidget {
@@ -136,6 +137,27 @@ class OverlayScreen extends ConsumerWidget {
               ),
             ),
           ),
+          const SizedBox(height: 12),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Audio Transcription', style: theme.textTheme.titleMedium),
+                  const SizedBox(height: 4),
+                  Text('Transcribe speech from the current audio/video content.',
+                      style: theme.textTheme.bodySmall),
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed: () => _startTranscription(context, ref, notifier, state),
+                    icon: const Icon(Icons.mic),
+                    label: const Text('Transcribe Audio'),
+                  ),
+                ],
+              ),
+            ),
+          ),
           if (state.isCapturing)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 16),
@@ -246,6 +268,36 @@ class OverlayScreen extends ConsumerWidget {
       'translate' => 'Translation (${targetLanguage ?? "English"})',
       _ => 'Summary',
     };
+  }
+
+  Future<void> _startTranscription(BuildContext context, WidgetRef ref, OverlayNotifier notifier, OverlayState state) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final audioService = ref.read(audioTranscriptionServiceProvider);
+
+    final hasPerm = await audioService.checkPermission();
+    if (!hasPerm) {
+      final granted = await audioService.requestPermission();
+      if (!granted) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Microphone permission required for transcription')),
+        );
+        return;
+      }
+    }
+
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Listening...'), duration: Duration(seconds: 1)),
+    );
+
+    final result = await audioService.startListening();
+
+    if (result != null && result.isNotEmpty) {
+      notifier.captureAndAnalyze(overrideText: result);
+    } else {
+      messenger.showSnackBar(
+        SnackBar(content: Text(audioService.lastError ?? 'No speech detected')),
+      );
+    }
   }
 
   Widget _privacyFeature(ThemeData theme, String text) {
