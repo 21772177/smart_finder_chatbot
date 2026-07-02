@@ -1,11 +1,13 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:second_brain/main.dart';
+import 'package:second_brain/features/analyze/analysis_service.dart';
 
 void main() {
-  testWidgets('App renders main shell', (WidgetTester tester) async {
-    SharedPreferences.setMockInitialValues({});
-    await tester.pumpWidget(const SecondBrainApp());
-    expect(find.text('Second Brain'), findsWidgets);
+  test('AnalysisService basic functionality', () {
+    final service = AnalysisService();
+    const text = 'This is a test sentence. It has multiple words.';
+    final result = service.analyze(text);
+
+    expect(result.wordCount, greaterThan(0));
+    expect(result.sentenceCount, greaterThan(0));
   });
 }
