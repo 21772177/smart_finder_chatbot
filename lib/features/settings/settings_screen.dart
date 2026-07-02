@@ -9,6 +9,7 @@ import 'settings_service.dart';
 import 'blocked_apps_screen.dart';
 import '../analyze/cloud_analysis_service.dart';
 import '../analyze/local_llm_service.dart';
+import '../permissions/permission_dashboard.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -24,6 +25,21 @@ class SettingsScreen extends ConsumerWidget {
         padding: const EdgeInsets.all(16),
         children: [
           Text('Permissions', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 8),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.security),
+              title: const Text('Permission Dashboard'),
+              subtitle: const Text('View and grant required permissions'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const PermissionDashboard()),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text('Behaviors', style: theme.textTheme.titleMedium),
           const SizedBox(height: 8),
           Card(
             child: Column(

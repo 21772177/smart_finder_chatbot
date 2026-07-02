@@ -15,6 +15,7 @@ import com.secondbrain.second_brain.service.CleanupWorker
 import com.secondbrain.second_brain.service.ForegroundChannelHandler
 import com.secondbrain.second_brain.service.ForegroundService
 import com.secondbrain.second_brain.service.WorkerChannelHandler
+import com.secondbrain.second_brain.permission.PermissionChannelHandler
 
 class MainActivity : FlutterActivity() {
     private val overlayHandler = OverlayChannelHandler()
@@ -24,6 +25,7 @@ class MainActivity : FlutterActivity() {
     private val securityHandler = SecurityChannelHandler()
     private val workerHandler = WorkerChannelHandler()
     private val foregroundHandler = ForegroundChannelHandler()
+    private val permissionHandler = PermissionChannelHandler()
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -34,6 +36,7 @@ class MainActivity : FlutterActivity() {
         securityHandler.register(flutterEngine, this)
         workerHandler.register(flutterEngine, this)
         foregroundHandler.register(flutterEngine, this)
+        permissionHandler.register(flutterEngine, this)
         ForegroundService.start(this)
         CleanupWorker.schedule(this)
     }
@@ -46,6 +49,7 @@ class MainActivity : FlutterActivity() {
         securityHandler.unregister()
         workerHandler.unregister()
         foregroundHandler.unregister()
+        permissionHandler.unregister()
         super.onDestroy()
     }
 
