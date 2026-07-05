@@ -80,23 +80,52 @@ class SettingsScreen extends ConsumerWidget {
                   onChanged: (v) => ref.read(settingsServiceProvider).enableCloudLLM = v,
                 ),
                 const Divider(height: 1),
+                if (settings.enableCloudLLM) ...[
+                  ListTile(
+                    leading: const Icon(Icons.psychology),
+                    title: const Text('Cloud Provider'),
+                    subtitle: Text(
+                      settings.llmProvider.name.toUpperCase(),
+                      style: TextStyle(color: theme.colorScheme.primary),
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => _showProviderDialog(context, ref, settings),
+                  ),
+                  const Divider(height: 1),
+                  _buildApiKeyTile(
+                    context,
+                    ref,
+                    settings,
+                    'Gemini API Key',
+                    settings.geminiApiKey,
+                    settings.llmProvider == LLMProvider.gemini,
+                    () => _showApiKeyDialog(context, ref, settings, 'gemini'),
+                  ),
+                  _buildApiKeyTile(
+                    context,
+                    ref,
+                    settings,
+                    'OpenAI API Key',
+                    settings.openaiApiKey,
+                    settings.llmProvider == LLMProvider.openai,
+                    () => _showApiKeyDialog(context, ref, settings, 'openai'),
+                  ),
+                  _buildApiKeyTile(
+                    context,
+                    ref,
+                    settings,
+                    'Claude API Key',
+                    settings.anthropicApiKey,
+                    settings.llmProvider == LLMProvider.anthropic,
+                    () => _showApiKeyDialog(context, ref, settings, 'anthropic'),
+                  ),
+                ],
+                const Divider(height: 1),
                 SwitchListTile(
                   title: const Text('Audio Transcription'),
-                  subtitle: const Text('Enable Whisper for audio/video content'),
+                  subtitle: const Text('Enable on-device transcription for audio/video'),
                   value: settings.enableWhisper,
                   onChanged: (v) => ref.read(settingsServiceProvider).enableWhisper = v,
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.key),
-                  title: const Text('Gemini API Key'),
-                  subtitle: Text(
-                    settings.llmApiKey != null && settings.llmApiKey!.isNotEmpty
-                        ? 'Configured (${settings.llmApiKey!.substring(0, 8)}...)'
-                        : 'Not set — required for cloud analysis',
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => _showApiKeyDialog(context, ref, settings),
                 ),
                 const Divider(height: 1),
                 SwitchListTile(
@@ -212,29 +241,65 @@ class SettingsScreen extends ConsumerWidget {
     }
   }
 
-  Future<void> _showApiKeyDialog(BuildContext context, WidgetRef ref, SettingsService settings) async {
-    final controller = TextEditingController(text: settings.llmApiKey ?? '');
+  Future<void> _showApiKeyDialog(BuildContext context, WidgetRef ref, SettingsService settings, String provider) async {
+    String title;
+    String hint;
+    String url;
+    String? currentKey;
+    Function(String?) setter;
+
+    switch (provider) {
+      case 'gemini':
+        title = 'Gemini API Key';
+        hint = 'AIza...';
+        url = 'ai.google.dev';
+        currentKey = settings.geminiApiKey;
+        setter = (v) => settings.geminiApiKey = v;
+        break;
+      case 'openai':
+        title = 'OpenAI API Key';
+        hint = 'sk-...';
+        url = 'platform.openai.com';
+        currentKey = settings.openaiApiKey;
+        setter = (v) => settings.openaiApiKey = v;
+        break;
+      case 'anthropic':
+        title = 'Claude API Key';
+        hint = 'sk-ant-...';
+        url = 'console.anthropic.com';
+        currentKey = settings.anthropicApiKey;
+        setter = (v) => settings.anthropicApiKey = v;
+        break;
+      default:
+        title = 'API Key';
+        hint = '...';
+        url = '';
+        currentKey = null;
+        setter = (_) {};
+    }
+
+    final controller = TextEditingController(text: currentKey ?? '');
     final messenger = ScaffoldMessenger.of(context);
 
     await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Gemini API Key'),
+        title: Text(title),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              'Enter your Google Gemini API key to enable cloud-based analysis.\n'
-              'Get a key at ai.google.dev.',
-              style: TextStyle(fontSize: 13),
+            Text(
+              'Enter your $title to enable cloud-based analysis with ${provider.toUpperCase()}.\n'
+              'Get a key at $url.',
+              style: const TextStyle(fontSize: 13),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: controller,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'API Key',
-                hintText: 'AIza...',
-                border: OutlineInputBorder(),
+                hintText: hint,
+                border: const OutlineInputBorder(),
               ),
               autofocus: true,
             ),
@@ -247,7 +312,7 @@ class SettingsScreen extends ConsumerWidget {
           ),
           TextButton(
             onPressed: () {
-              ref.read(settingsServiceProvider).llmApiKey = null;
+              setter(null);
               ref.invalidate(cloudAnalysisServiceProvider);
               messenger.showSnackBar(
                 const SnackBar(content: Text('API key removed')),
@@ -260,7 +325,7 @@ class SettingsScreen extends ConsumerWidget {
             onPressed: () {
               final key = controller.text.trim();
               if (key.isEmpty) return;
-              ref.read(settingsServiceProvider).llmApiKey = key;
+              setter(key);
               ref.invalidate(cloudAnalysisServiceProvider);
               messenger.showSnackBar(
                 const SnackBar(content: Text('API key saved')),
@@ -270,6 +335,46 @@ class SettingsScreen extends ConsumerWidget {
             child: const Text('Save'),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildApiKeyTile(BuildContext context, WidgetRef ref, SettingsService settings,
+      String title, String? key, bool isActive, VoidCallback onTap) {
+    final theme = Theme.of(context);
+    return ListTile(
+      leading: Icon(isActive ? Icons.check_circle : Icons.key, color: isActive ? Colors.green : null),
+      title: Text(title),
+      subtitle: Text(
+        key != null && key.isNotEmpty
+            ? 'Configured (${key.substring(0, 8)}...)'
+            : 'Not set ${isActive ? '— required for current provider' : ''}',
+      ),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: onTap,
+    );
+  }
+
+  Future<void> _showProviderDialog(BuildContext context, WidgetRef ref, SettingsService settings) async {
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Select Cloud Provider'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: LLMProvider.values.map((p) => RadioListTile<LLMProvider>(
+            title: Text(p.name.toUpperCase()),
+            value: p,
+            groupValue: settings.llmProvider,
+            onChanged: (v) {
+              if (v != null) {
+                settings.llmProvider = v;
+                ref.invalidate(cloudAnalysisServiceProvider);
+                Navigator.pop(ctx);
+              }
+            },
+          )).toList(),
+        ),
       ),
     );
   }

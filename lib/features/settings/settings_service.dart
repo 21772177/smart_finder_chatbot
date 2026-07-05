@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants.dart';
+import '../analyze/cloud_analysis_service.dart';
 
 class SettingsService {
   final SharedPreferences _prefs;
@@ -25,14 +26,39 @@ class SettingsService {
   bool get enableWhisper => _prefs.getBool('enable_whisper') ?? false;
   set enableWhisper(bool value) => _prefs.setBool('enable_whisper', value);
 
-  String? get llmApiKey => _prefs.getString('llm_api_key');
-  set llmApiKey(String? value) {
+  LLMProvider get llmProvider => LLMProvider.values.byName(_prefs.getString('llm_provider') ?? 'gemini');
+  set llmProvider(LLMProvider value) => _prefs.setString('llm_provider', value.name);
+
+  String? get geminiApiKey => _prefs.getString('gemini_api_key');
+  set geminiApiKey(String? value) {
     if (value == null || value.isEmpty) {
-      _prefs.remove('llm_api_key');
+      _prefs.remove('gemini_api_key');
     } else {
-      _prefs.setString('llm_api_key', value);
+      _prefs.setString('gemini_api_key', value);
     }
   }
+
+  String? get openaiApiKey => _prefs.getString('openai_api_key');
+  set openaiApiKey(String? value) {
+    if (value == null || value.isEmpty) {
+      _prefs.remove('openai_api_key');
+    } else {
+      _prefs.setString('openai_api_key', value);
+    }
+  }
+
+  String? get anthropicApiKey => _prefs.getString('anthropic_api_key');
+  set anthropicApiKey(String? value) {
+    if (value == null || value.isEmpty) {
+      _prefs.remove('anthropic_api_key');
+    } else {
+      _prefs.setString('anthropic_api_key', value);
+    }
+  }
+
+  // Legacy getter for backwards compatibility
+  String? get llmApiKey => _prefs.getString('llm_api_key') ?? geminiApiKey;
+  set llmApiKey(String? value) => geminiApiKey = value;
 
   List<String> get blockedApps =>
       _prefs.getStringList('blocked_apps') ?? List.from(AppConstants.blockedApps);

@@ -1,23 +1,47 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import '../settings/settings_service.dart';
 import 'analysis_service.dart';
 
+enum LLMProvider { gemini, openai, anthropic }
+
 class CloudAnalysisService {
-  GenerativeModel? _model;
+  GenerativeModel? _geminiModel;
+  String? _openaiApiKey;
+  String? _anthropicApiKey;
+  LLMProvider? _currentProvider;
 
-  void configure(String apiKey) {
-    _model = GenerativeModel(
-      model: 'gemini-2.0-flash',
-      apiKey: apiKey,
-      generationConfig: GenerationConfig(
-        temperature: 0.3,
-        maxOutputTokens: 512,
-      ),
-    );
+  bool get isConfigured => _geminiModel != null || _openaiApiKey != null || _anthropicApiKey != null;
+
+  void configure(LLMProvider provider, String apiKey) {
+    _currentProvider = provider;
+    switch (provider) {
+      case LLMProvider.gemini:
+        _geminiModel = GenerativeModel(
+          model: 'gemini-2.0-flash',
+          apiKey: apiKey,
+          generationConfig: GenerationConfig(
+            temperature: 0.3,
+            maxOutputTokens: 512,
+          ),
+        );
+        _openaiApiKey = null;
+        _anthropicApiKey = null;
+        break;
+      case LLMProvider.openai:
+        _openaiApiKey = apiKey;
+        _geminiModel = null;
+        _anthropicApiKey = null;
+        break;
+      case LLMProvider.anthropic:
+        _anthropicApiKey = apiKey;
+        _geminiModel = null;
+        _openaiApiKey = null;
+        break;
+    }
   }
-
-  bool get isConfigured => _model != null;
 
   Future<AnalysisResult> analyze(String text, {String? mode, String? targetLanguage}) async {
     if (!isConfigured) {
@@ -27,18 +51,95 @@ class CloudAnalysisService {
     try {
       final prompt = _buildPrompt(text, mode, targetLanguage);
 
-      final response = await _model!.generateContent([Content.text(prompt)]);
-      final result = response.text ?? '';
-
-      return AnalysisResult(
-        summary: result,
-        keywords: _extractKeywords(text),
-        wordCount: text.split(RegExp(r'\s+')).length,
-        sentenceCount: text.split(RegExp(r'[.!?\n]+')).where((s) => s.trim().isNotEmpty).length,
-      );
+      switch (_currentProvider) {
+        case LLMProvider.gemini:
+          return await _analyzeWithGemini(prompt, text);
+        case LLMProvider.openai:
+          return await _analyzeWithOpenAI(prompt, text);
+        case LLMProvider.anthropic:
+          return await _analyzeWithAnthropic(prompt, text);
+        default:
+          return _localFallback(text);
+      }
     } catch (_) {
       return _localFallback(text);
     }
+  }
+
+  Future<AnalysisResult> _analyzeWithGemini(String prompt, String text) async {
+    final response = await _geminiModel!.generateContent([Content.text(prompt)]);
+    final result = response.text ?? '';
+    return AnalysisResult(
+      summary: result,
+      keywords: _extractKeywords(text),
+      wordCount: text.split(RegExp(r'\s+')).length,
+      sentenceCount: text.split(RegExp(r'[.!?\n]+')).where((s) => s.trim().isNotEmpty).length,
+    );
+  }
+
+  Future<AnalysisResult> _analyzeWithOpenAI(String prompt, String text) async {
+    final response = await http.post(
+      Uri.parse('https://api.openai.com/v1/chat/completions'),
+      headers: {
+        'Authorization': 'Bearer $_openaiApiKey',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'model': 'gpt-4o-mini',
+        'messages': [
+          {'role': 'user', 'content': prompt},
+        ],
+        'temperature': 0.3,
+        'max_tokens': 512,
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('OpenAI API error: ${response.body}');
+    }
+
+    final data = jsonDecode(response.body);
+    final result = data['choices'][0]['message']['content'] ?? '';
+
+    return AnalysisResult(
+      summary: result,
+      keywords: _extractKeywords(text),
+      wordCount: text.split(RegExp(r'\s+')).length,
+      sentenceCount: text.split(RegExp(r'[.!?\n]+')).where((s) => s.trim().isNotEmpty).length,
+    );
+  }
+
+  Future<AnalysisResult> _analyzeWithAnthropic(String prompt, String text) async {
+    final response = await http.post(
+      Uri.parse('https://api.anthropic.com/v1/messages'),
+      headers: {
+        'x-api-key': _anthropicApiKey!,
+        'Content-Type': 'application/json',
+        'anthropic-version': '2023-06-01',
+      },
+      body: jsonEncode({
+        'model': 'claude-3-haiku-20240307',
+        'max_tokens': 512,
+        'messages': [
+          {'role': 'user', 'content': prompt},
+        ],
+        'temperature': 0.3,
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Anthropic API error: ${response.body}');
+    }
+
+    final data = jsonDecode(response.body);
+    final result = data['content'][0]['text'] ?? '';
+
+    return AnalysisResult(
+      summary: result,
+      keywords: _extractKeywords(text),
+      wordCount: text.split(RegExp(r'\s+')).length,
+      sentenceCount: text.split(RegExp(r'[.!?\n]+')).where((s) => s.trim().isNotEmpty).length,
+    );
   }
 
   String _buildPrompt(String text, String? mode, String? targetLanguage) {
@@ -96,9 +197,27 @@ class CloudAnalysisService {
 final cloudAnalysisServiceProvider = Provider<CloudAnalysisService>((ref) {
   final settings = ref.watch(settingsServiceProvider);
   final service = CloudAnalysisService();
-  final key = settings.llmApiKey;
-  if (key != null && key.isNotEmpty) {
-    service.configure(key);
+  final provider = settings.llmProvider;
+  
+  switch (provider) {
+    case LLMProvider.gemini:
+      final key = settings.geminiApiKey;
+      if (key != null && key.isNotEmpty) {
+        service.configure(LLMProvider.gemini, key);
+      }
+      break;
+    case LLMProvider.openai:
+      final key = settings.openaiApiKey;
+      if (key != null && key.isNotEmpty) {
+        service.configure(LLMProvider.openai, key);
+      }
+      break;
+    case LLMProvider.anthropic:
+      final key = settings.anthropicApiKey;
+      if (key != null && key.isNotEmpty) {
+        service.configure(LLMProvider.anthropic, key);
+      }
+      break;
   }
   return service;
 });
