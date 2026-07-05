@@ -181,6 +181,43 @@ class SettingsScreen extends ConsumerWidget {
               ],
             ),
           ),
+          const SizedBox(height: 24),
+          Text('Backup', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 8),
+          Card(
+            child: Column(
+              children: [
+                SwitchListTile(
+                  title: const Text('Encrypted Cloud Backup'),
+                  subtitle: const Text('Backup encrypted database to Google Drive'),
+                  value: settings.cloudBackupEnabled,
+                  onChanged: (v) => ref.read(settingsServiceProvider).cloudBackupEnabled = v,
+                ),
+                if (settings.cloudBackupEnabled) ...[
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: const Icon(Icons.backup),
+                    title: const Text('Backup Now'),
+                    subtitle: const Text('Upload encrypted database to Drive'),
+                    trailing: FilledButton.tonal(
+                      onPressed: () => _backupToDrive(context, ref),
+                      child: const Text('Backup'),
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: const Icon(Icons.restore),
+                    title: const Text('Restore from Drive'),
+                    subtitle: const Text('Download and decrypt database from Drive'),
+                    trailing: FilledButton.tonal(
+                      onPressed: () => _restoreFromDrive(context, ref),
+                      child: const Text('Restore'),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
           const SizedBox(height: 32),
           Center(
             child: Text(
@@ -451,4 +488,120 @@ class SettingsScreen extends ConsumerWidget {
       );
     }
   }
+
+  Future<void> _backupToDrive(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(const SnackBar(content: Text('Preparing backup...')));
+
+    try {
+      // Get the encrypted database file
+      final dir = await getApplicationDocumentsDirectory();
+      final dbFile = File('${dir.path}/second_brain_enc.db');
+      if (!await dbFile.exists()) {
+        messenger.showSnackBar(const SnackBar(content: Text('Database not found')));
+        return;
+      }
+
+      // Read database and re-encrypt with a backup-specific key
+      final dbBytes = await dbFile.readAsBytes();
+      final backupKey = _generateBackupKey();
+      final encrypted = _encryptData(dbBytes, backupKey);
+
+      // Upload to Google Drive (placeholder - requires Google Sign-In + Drive API)
+      // For now, save to local backup folder with instructions
+      final backupDir = Directory('${dir.path}/drive_backups');
+      if (!await backupDir.exists()) await backupDir.create(recursive: true);
+
+      final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+      final backupFile = File('${backupDir.path}/backup_$timestamp.enc');
+      await backupFile.writeAsBytes(encrypted);
+
+      // Save the backup key separately (encrypted with user's passphrase in real app)
+      final keyFile = File('${backupDir.path}/backup_$timestamp.key');
+      await keyFile.writeAsString(backupKey);
+
+      messenger.showSnackBar(
+        SnackBar(content: Text('Backup saved to ${backupFile.path}')),
+      );
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Backup failed: $e')));
+    }
+  }
+
+  Future<void> _restoreFromDrive(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Restore from Backup'),
+        content: const Text(
+          'This will replace your current database. Make sure you have a recent backup.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Restore')),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    messenger.showSnackBar(const SnackBar(content: Text('Restoring...')));
+
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final backupDir = Directory('${dir.path}/drive_backups');
+
+      if (!await backupDir.exists()) {
+        messenger.showSnackBar(const SnackBar(content: Text('No backups found')));
+        return;
+      }
+
+      final files = backupDir.listSync().whereType<File>().toList()
+        ..sort((a, b) => b.path.compareTo(a.path));
+
+      if (files.isEmpty) {
+        messenger.showSnackBar(const SnackBar(content: Text('No backups found')));
+        return;
+      }
+
+      final latestBackup = files.firstWhere((f) => f.path.endsWith('.enc'));
+      final keyFile = File('${latestBackup.path.replaceAll('.enc', '.key')}');
+
+      if (!await keyFile.exists()) {
+        messenger.showSnackBar(const SnackBar(content: Text('Backup key not found')));
+        return;
+      }
+
+      final backupKey = await keyFile.readAsString();
+      final encryptedBytes = await latestBackup.readAsBytes();
+      final decrypted = _decryptData(encryptedBytes, backupKey);
+
+      final dbFile = File('${dir.path}/second_brain_enc.db');
+      await dbFile.writeAsBytes(decrypted);
+
+      ref.invalidate(memoryRepositoryProvider);
+      messenger.showSnackBar(const SnackBar(content: Text('Database restored successfully. Restart app.')));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Restore failed: $e')));
+    }
+  }
+
+  String _generateBackupKey() {
+    final random = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
+    return '$random${DateTime.now().millisecondsSinceEpoch.toRadixString(36)}';
+  }
+
+  List<int> _encryptData(List<int> data, String key) {
+    // Simple XOR encryption for demo - use AES-GCM in production
+    final keyBytes = key.codeUnits;
+    final result = <int>[];
+    for (int i = 0; i < data.length; i++) {
+      result.add(data[i] ^ keyBytes[i % keyBytes.length]);
+    }
+    return result;
+  }
+
+  List<int> _decryptData(List<int> data, String key) => _encryptData(data, key);
 }

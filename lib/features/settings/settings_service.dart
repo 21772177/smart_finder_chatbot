@@ -63,6 +63,9 @@ class SettingsService {
   List<String> get blockedApps =>
       _prefs.getStringList('blocked_apps') ?? List.from(AppConstants.blockedApps);
   set blockedApps(List<String> value) => _prefs.setStringList('blocked_apps', value);
+
+  bool get cloudBackupEnabled => _prefs.getBool('cloud_backup_enabled') ?? false;
+  set cloudBackupEnabled(bool value) => _prefs.setBool('cloud_backup_enabled', value);
 }
 
 final sharedPrefsProvider = Provider<SharedPreferences>((ref) {
