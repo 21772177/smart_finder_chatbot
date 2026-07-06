@@ -232,52 +232,6 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _downloadModel(BuildContext context, WidgetRef ref, RecommendedModel model) async {
-    final messenger = ScaffoldMessenger.of(context);
-    final llm = ref.read(localLlmServiceProvider);
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Download ${model.name}'),
-        content: Text(
-          'This will download a ${model.sizeMb}MB model file. '
-          'Download over Wi-Fi recommended.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Download'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true) return;
-
-    messenger.showSnackBar(
-      const SnackBar(content: Text('Download started...'), duration: Duration(seconds: 2)),
-    );
-
-    final filename = model.url.split('/').last;
-    final success = await llm.downloadModel(model.url, filename);
-
-    if (context.mounted) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(success ? 'Model downloaded successfully' : 'Download failed'),
-        ),
-      );
-      if (success) {
-        ref.invalidate(localLlmServiceProvider);
-      }
-    }
-  }
-
   Future<void> _showApiKeyDialog(BuildContext context, WidgetRef ref, SettingsService settings, String provider) async {
     String title;
     String hint;
@@ -308,11 +262,7 @@ class SettingsScreen extends ConsumerWidget {
         setter = (v) => settings.anthropicApiKey = v;
         break;
       default:
-        title = 'API Key';
-        hint = '...';
-        url = '';
-        currentKey = null;
-        setter = (_) {};
+        return;
     }
 
     final controller = TextEditingController(text: currentKey ?? '');
@@ -351,9 +301,7 @@ class SettingsScreen extends ConsumerWidget {
             onPressed: () {
               setter(null);
               ref.invalidate(cloudAnalysisServiceProvider);
-              messenger.showSnackBar(
-                const SnackBar(content: Text('API key removed')),
-              );
+              messenger.showSnackBar(const SnackBar(content: Text('API key removed')));
               Navigator.pop(ctx);
             },
             child: Text('Clear', style: TextStyle(color: Colors.red.shade300)),
@@ -364,9 +312,7 @@ class SettingsScreen extends ConsumerWidget {
               if (key.isEmpty) return;
               setter(key);
               ref.invalidate(cloudAnalysisServiceProvider);
-              messenger.showSnackBar(
-                const SnackBar(content: Text('API key saved')),
-              );
+              messenger.showSnackBar(const SnackBar(content: Text('API key saved')));
               Navigator.pop(ctx);
             },
             child: const Text('Save'),
@@ -378,7 +324,6 @@ class SettingsScreen extends ConsumerWidget {
 
   Widget _buildApiKeyTile(BuildContext context, WidgetRef ref, SettingsService settings,
       String title, String? key, bool isActive, VoidCallback onTap) {
-    final theme = Theme.of(context);
     return ListTile(
       leading: Icon(isActive ? Icons.check_circle : Icons.key, color: isActive ? Colors.green : null),
       title: Text(title),
@@ -399,21 +344,60 @@ class SettingsScreen extends ConsumerWidget {
         title: const Text('Select Cloud Provider'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
-          children: LLMProvider.values.map((p) => RadioListTile<LLMProvider>(
-            title: Text(p.name.toUpperCase()),
-            value: p,
-            groupValue: settings.llmProvider,
-            onChanged: (v) {
-              if (v != null) {
-                settings.llmProvider = v;
-                ref.invalidate(cloudAnalysisServiceProvider);
-                Navigator.pop(ctx);
-              }
-            },
-          )).toList(),
+          children: [
+            RadioGroup<LLMProvider>(
+              groupValue: settings.llmProvider,
+              onChanged: (v) {
+                if (v != null) {
+                  settings.llmProvider = v;
+                  ref.invalidate(cloudAnalysisServiceProvider);
+                  Navigator.pop(ctx);
+                }
+              },
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: LLMProvider.values.map((p) => RadioListTile<LLMProvider>(
+                  title: Text(p.name.toUpperCase()),
+                  value: p,
+                )).toList(),
+              ),
+            ),
+          ],
         ),
       ),
     );
+  }
+
+  Future<void> _downloadModel(BuildContext context, WidgetRef ref, RecommendedModel model) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final llm = ref.read(localLlmServiceProvider);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Download ${model.name}'),
+        content: Text(
+          'This will download a ${model.sizeMb}MB model file. '
+          'Download over Wi-Fi recommended.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Download')),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    messenger.showSnackBar(const SnackBar(content: Text('Download started...'), duration: Duration(seconds: 2)));
+
+    final filename = model.url.split('/').last;
+    final success = await llm.downloadModel(model.url, filename);
+
+    if (context.mounted) {
+      messenger.showSnackBar(SnackBar(content: Text(success ? 'Model downloaded successfully' : 'Download failed')));
+      if (success) ref.invalidate(localLlmServiceProvider);
+    }
   }
 
   Future<void> _exportData(BuildContext context, WidgetRef ref) async {
@@ -422,9 +406,7 @@ class SettingsScreen extends ConsumerWidget {
     final entries = await repo.getAllEntries();
 
     if (entries.isEmpty) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('No memories to export')),
-      );
+      messenger.showSnackBar(const SnackBar(content: Text('No memories to export')));
       return;
     }
 
@@ -464,10 +446,7 @@ class SettingsScreen extends ConsumerWidget {
           'This action cannot be undone.',
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () => Navigator.pop(ctx, true),
@@ -483,9 +462,7 @@ class SettingsScreen extends ConsumerWidget {
     ref.invalidate(memoryRepositoryProvider);
 
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('All memories deleted')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('All memories deleted')));
     }
   }
 
@@ -494,7 +471,6 @@ class SettingsScreen extends ConsumerWidget {
     messenger.showSnackBar(const SnackBar(content: Text('Preparing backup...')));
 
     try {
-      // Get the encrypted database file
       final dir = await getApplicationDocumentsDirectory();
       final dbFile = File('${dir.path}/second_brain_enc.db');
       if (!await dbFile.exists()) {
@@ -502,13 +478,10 @@ class SettingsScreen extends ConsumerWidget {
         return;
       }
 
-      // Read database and re-encrypt with a backup-specific key
       final dbBytes = await dbFile.readAsBytes();
       final backupKey = _generateBackupKey();
       final encrypted = _encryptData(dbBytes, backupKey);
 
-      // Upload to Google Drive (placeholder - requires Google Sign-In + Drive API)
-      // For now, save to local backup folder with instructions
       final backupDir = Directory('${dir.path}/drive_backups');
       if (!await backupDir.exists()) await backupDir.create(recursive: true);
 
@@ -516,13 +489,10 @@ class SettingsScreen extends ConsumerWidget {
       final backupFile = File('${backupDir.path}/backup_$timestamp.enc');
       await backupFile.writeAsBytes(encrypted);
 
-      // Save the backup key separately (encrypted with user's passphrase in real app)
       final keyFile = File('${backupDir.path}/backup_$timestamp.key');
       await keyFile.writeAsString(backupKey);
 
-      messenger.showSnackBar(
-        SnackBar(content: Text('Backup saved to ${backupFile.path}')),
-      );
+      messenger.showSnackBar(SnackBar(content: Text('Backup saved to ${backupFile.path}')));
     } catch (e) {
       messenger.showSnackBar(SnackBar(content: Text('Backup failed: $e')));
     }
@@ -535,9 +505,7 @@ class SettingsScreen extends ConsumerWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Restore from Backup'),
-        content: const Text(
-          'This will replace your current database. Make sure you have a recent backup.',
-        ),
+        content: const Text('This will replace your current database. Make sure you have a recent backup.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Restore')),
@@ -567,7 +535,7 @@ class SettingsScreen extends ConsumerWidget {
       }
 
       final latestBackup = files.firstWhere((f) => f.path.endsWith('.enc'));
-      final keyFile = File('${latestBackup.path.replaceAll('.enc', '.key')}');
+      final keyFile = File(latestBackup.path.replaceAll('.enc', '.key'));
 
       if (!await keyFile.exists()) {
         messenger.showSnackBar(const SnackBar(content: Text('Backup key not found')));
@@ -594,7 +562,6 @@ class SettingsScreen extends ConsumerWidget {
   }
 
   List<int> _encryptData(List<int> data, String key) {
-    // Simple XOR encryption for demo - use AES-GCM in production
     final keyBytes = key.codeUnits;
     final result = <int>[];
     for (int i = 0; i < data.length; i++) {

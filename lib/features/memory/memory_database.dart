@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:path_provider/path_provider.dart';
@@ -8,10 +9,12 @@ import 'package:sqlite3/sqlite3.dart' as sqlite3;
 import '../security/secure_key_service.dart';
 import 'memory_model.dart';
 import 'embedding_service.dart';
+import 'vector_index.dart';
 
 part 'memory_database.g.dart';
 
 final _embedder = EmbeddingService();
+final _vectorIndex = VectorIndex(256);
 
 class Memories extends Table {
   TextColumn get id => text()();
@@ -49,7 +52,8 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> insertMemoryEntry(MemoryEntry entry) async {
     final text = '${entry.title} ${entry.content} ${entry.ocrText ?? ''} ${entry.tags.join(' ')}';
-    final embedding = _embedder.vectorToJson(_embedder.embed(text));
+    final embeddingVec = _embedder.embed(text);
+    final embedding = _embedder.vectorToJson(embeddingVec);
 
     await into(memories).insertOnConflictUpdate(MemoriesCompanion(
       id: Value(entry.id),
@@ -62,14 +66,18 @@ class AppDatabase extends _$AppDatabase {
       createdAt: Value(entry.createdAt),
       updatedAt: Value(entry.updatedAt),
     ));
+
+    _vectorIndex.add(entry.id, Float32List.fromList(embeddingVec));
   }
 
   Future<void> deleteMemoryEntry(String id) async {
     await (delete(memories)..where((t) => t.id.equals(id))).go();
+    _vectorIndex.remove(id);
   }
 
   Future<void> deleteAllEntries() async {
     await delete(memories).go();
+    _vectorIndex.clear();
   }
 
   Future<List<MemoryEntry>> getAllEntries() async {
@@ -78,12 +86,27 @@ class AppDatabase extends _$AppDatabase {
   }
 
   Future<List<MemorySearchResult>> search(String query) async {
+    final queryEmbedding = _embedder.embed(query);
+
+    // Use vector index for fast search
+    if (_vectorIndex.size > 0) {
+      final results = _vectorIndex.search(Float32List.fromList(queryEmbedding), 20);
+      final searchResults = <MemorySearchResult>[];
+
+      for (final r in results) {
+        final row = await (select(memories)..where((t) => t.id.equals(r.id))).getSingleOrNull();
+        if (row != null) {
+          searchResults.add(MemorySearchResult(memoryEntry: _rowToEntry(row), score: 1.0 - r.distance / 2));
+        }
+      }
+      return searchResults.take(20).toList();
+    }
+
+    // Fallback to full scan
     final rows = await select(memories).get();
     if (rows.isEmpty) return [];
 
-    final queryEmbedding = _embedder.embed(query);
     final results = <MemorySearchResult>[];
-
     for (final row in rows) {
       final raw = row.embedding;
       if (raw.isEmpty) continue;
@@ -96,6 +119,19 @@ class AppDatabase extends _$AppDatabase {
 
     results.sort((a, b) => b.score.compareTo(a.score));
     return results.take(20).toList();
+  }
+
+  Future<void> rebuildVectorIndex() async {
+    _vectorIndex.clear();
+    final rows = await select(memories).get();
+    for (final row in rows) {
+      final raw = row.embedding;
+      if (raw.isNotEmpty) {
+        final vec = _embedder.jsonToVector(raw);
+        _vectorIndex.add(row.id, Float32List.fromList(vec));
+      }
+    }
+    _vectorIndex.rebuild();
   }
 
   MemoryEntry _rowToEntry(Memory row) {
