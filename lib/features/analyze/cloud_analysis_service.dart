@@ -150,6 +150,9 @@ class CloudAnalysisService {
     if (mode == 'explain') {
       return 'Explain the following text in simple terms. Break down complex concepts:\n\n$text';
     }
+    if (mode == 'takeaways') {
+      return 'Extract the key actionable takeaways from the following text. Focus on decisions, next steps, and important facts:\n\n$text';
+    }
     return 'Summarize the following text concisely. Extract key points and main ideas:\n\n$text';
   }
 

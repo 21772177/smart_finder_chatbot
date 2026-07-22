@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'features/overlay/overlay_screen.dart';
 import 'features/chat/chat_screen.dart';
 import 'features/settings/settings_screen.dart';
+import 'features/onboarding/onboarding_screen.dart';
 import 'core/theme.dart';
 
 final selectedTabProvider = StateProvider<int>((ref) => 0);
@@ -12,11 +13,19 @@ class SecondBrainApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final onboardingAsync = ref.watch(onboardingCompleteProvider);
+
     return MaterialApp(
       title: 'Second Brain',
       theme: secondBrainTheme,
       debugShowCheckedModeBanner: false,
-      home: const MainShell(),
+      home: onboardingAsync.when(
+        loading: () => const Scaffold(
+          body: Center(child: CircularProgressIndicator()),
+        ),
+        error: (Object e, StackTrace s) => const MainShell(),
+        data: (complete) => complete ? const MainShell() : const OnboardingScreen(),
+      ),
     );
   }
 }

@@ -71,7 +71,7 @@ class OverlayScreen extends ConsumerWidget {
 
           // Cloud LLM not configured warning
           if (ref.watch(settingsServiceProvider).enableCloudLLM &&
-              !ref.watch(settingsServiceProvider).geminiApiKey.isNullOrEmpty() &&
+              ref.watch(settingsServiceProvider).geminiApiKey.isNullOrEmpty() &&
               ref.watch(settingsServiceProvider).openaiApiKey.isNullOrEmpty() &&
               ref.watch(settingsServiceProvider).anthropicApiKey.isNullOrEmpty())
             Padding(
