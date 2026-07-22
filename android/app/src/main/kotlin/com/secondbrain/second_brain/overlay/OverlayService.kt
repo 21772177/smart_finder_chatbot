@@ -37,6 +37,16 @@ class OverlayAccessibilityService : AccessibilityService() {
         var scanOnSave = true
         var enableBuffer = true
 
+        private val settingsListener = object : SharedPreferences.OnSharedPreferenceChangeListener {
+            override fun onSharedPreferenceChanged(prefs: SharedPreferences?, key: String?) {
+                when (key) {
+                    "scan_on_like" -> scanOnLike = prefs?.getBoolean("scan_on_like", true) ?: true
+                    "scan_on_save" -> scanOnSave = prefs?.getBoolean("scan_on_save", true) ?: true
+                    "enable_buffer" -> enableBuffer = prefs?.getBoolean("enable_buffer", true) ?: true
+                }
+            }
+        }
+
         fun showBubble(engine: FlutterEngine) {
             flutterEngine = engine
             instance?.let { svc ->
@@ -91,6 +101,10 @@ class OverlayAccessibilityService : AccessibilityService() {
         instance = this
         isConnected = true
         loadSettings(this)
+
+        // Listen for live setting changes from the Flutter side
+        PreferenceManager.getDefaultSharedPreferences(this)
+            .registerOnSharedPreferenceChangeListener(settingsListener)
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {

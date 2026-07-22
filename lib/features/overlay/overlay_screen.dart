@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart' hide OverlayState;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../app.dart';
 import '../audio/audio_transcription_service.dart';
+import '../chat/chat_notifier.dart';
+import '../settings/settings_service.dart';
 import 'overlay_notifier.dart';
 
 class OverlayScreen extends ConsumerWidget {
@@ -18,6 +21,7 @@ class OverlayScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: [
+          // Hero section
           Icon(Icons.psychology, size: 80, color: colorScheme.primary),
           const SizedBox(height: 16),
           Text(
@@ -32,6 +36,8 @@ class OverlayScreen extends ConsumerWidget {
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 32),
+
+          // Overlay controls
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -58,27 +64,28 @@ class OverlayScreen extends ConsumerWidget {
               ),
             ),
           ),
+
+          // Permission denied warning
           if (state.status == OverlayStatus.permissionDenied)
+            _buildWarningCard(colorScheme, Icons.warning, 'Permission denied. Enable Accessibility Service in Settings.'),
+
+          // Cloud LLM not configured warning
+          if (ref.watch(settingsServiceProvider).enableCloudLLM &&
+              !ref.watch(settingsServiceProvider).geminiApiKey.isNullOrEmpty() &&
+              ref.watch(settingsServiceProvider).openaiApiKey.isNullOrEmpty() &&
+              ref.watch(settingsServiceProvider).anthropicApiKey.isNullOrEmpty())
             Padding(
               padding: const EdgeInsets.only(top: 16),
-              child: Card(
-                color: colorScheme.errorContainer,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      Icon(Icons.warning, color: colorScheme.error),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text('Permission denied. Enable Accessibility Service in Settings.',
-                            style: TextStyle(color: colorScheme.onErrorContainer)),
-                      ),
-                    ],
-                  ),
-                ),
+              child: _buildWarningCard(
+                colorScheme,
+                Icons.cloud_off,
+                'Cloud LLM enabled but no API key configured. Go to Settings to add a key.',
               ),
             ),
+
           const SizedBox(height: 16),
+
+          // Manual capture section
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -95,6 +102,7 @@ class OverlayScreen extends ConsumerWidget {
                       ButtonSegment(value: 'summarize', label: Text('Summarize'), icon: Icon(Icons.summarize, size: 16)),
                       ButtonSegment(value: 'explain', label: Text('Explain'), icon: Icon(Icons.lightbulb, size: 16)),
                       ButtonSegment(value: 'translate', label: Text('Translate'), icon: Icon(Icons.translate, size: 16)),
+                      ButtonSegment(value: 'takeaways', label: Text('Takeaways'), icon: Icon(Icons.checklist, size: 16)),
                     ],
                     selected: {state.analysisMode ?? 'summarize'},
                     onSelectionChanged: (selected) => notifier.setAnalysisMode(selected.first),
@@ -129,7 +137,7 @@ class OverlayScreen extends ConsumerWidget {
                   FilledButton.icon(
                     onPressed: state.isCapturing ? null : () => notifier.captureAndAnalyze(),
                     icon: state.isCapturing
-                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                         : const Icon(Icons.camera_alt),
                     label: Text(state.isCapturing ? 'Analyzing...' : 'Capture & Analyze'),
                   ),
@@ -138,6 +146,8 @@ class OverlayScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 12),
+
+          // Audio transcription section
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -158,11 +168,25 @@ class OverlayScreen extends ConsumerWidget {
               ),
             ),
           ),
+
+          // Loading indicator during capture
           if (state.isCapturing)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 16),
-              child: LinearProgressIndicator(),
+              child: Column(
+                children: [
+                  LinearProgressIndicator(),
+                  SizedBox(height: 8),
+                  Text(
+                    'Capturing and analyzing screen...',
+                    style: TextStyle(fontSize: 13, fontStyle: FontStyle.italic),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
             ),
+
+          // Error state
           if (state.lastCaptureError != null)
             Padding(
               padding: const EdgeInsets.only(top: 16),
@@ -170,11 +194,38 @@ class OverlayScreen extends ConsumerWidget {
                 color: colorScheme.errorContainer,
                 child: Padding(
                   padding: const EdgeInsets.all(16),
-                  child: Text('Error: ${state.lastCaptureError}',
-                      style: TextStyle(color: colorScheme.onErrorContainer)),
+                  child: Row(
+                    children: [
+                      Icon(Icons.error_outline, color: colorScheme.error),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Capture Failed',
+                                style: TextStyle(
+                                  color: colorScheme.onErrorContainer,
+                                  fontWeight: FontWeight.w600,
+                                )),
+                            const SizedBox(height: 4),
+                            Text(
+                              state.lastCaptureError!,
+                              style: TextStyle(color: colorScheme.onErrorContainer, fontSize: 13),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.refresh, color: colorScheme.onErrorContainer),
+                        onPressed: () => notifier.captureAndAnalyze(),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
+
+          // Results display
           if (!state.isCapturing && state.lastCaptureText != null && state.lastCaptureText!.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 16),
@@ -197,10 +248,11 @@ class OverlayScreen extends ConsumerWidget {
                           spacing: 6,
                           runSpacing: 4,
                           children: state.keywords.take(10).map((kw) =>
-                            Chip(
+                            ActionChip(
                               label: Text(kw, style: const TextStyle(fontSize: 12)),
-                              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               visualDensity: VisualDensity.compact,
+                              avatar: const Icon(Icons.search, size: 14),
+                              onPressed: () => _searchByKeyword(context, ref, kw),
                             ),
                           ).toList(),
                         ),
@@ -233,7 +285,7 @@ class OverlayScreen extends ConsumerWidget {
                           FilledButton.icon(
                             onPressed: () => notifier.saveLastCapture(),
                             icon: const Icon(Icons.save),
-                            label: const Text('Save'),
+                            label: const Text('Save to Memory'),
                           ),
                           const SizedBox(width: 8),
                           OutlinedButton.icon(
@@ -248,6 +300,7 @@ class OverlayScreen extends ConsumerWidget {
                 ),
               ),
             ),
+
           const SizedBox(height: 24),
           Text('Privacy First',
               style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
@@ -266,8 +319,17 @@ class OverlayScreen extends ConsumerWidget {
     return switch (mode) {
       'explain' => 'Explanation',
       'translate' => 'Translation (${targetLanguage ?? "English"})',
+      'takeaways' => 'Key Takeaways',
       _ => 'Summary',
     };
+  }
+
+  void _searchByKeyword(BuildContext context, WidgetRef ref, String keyword) {
+    // Switch to search tab and trigger search
+    ref.read(selectedTabProvider.notifier).state = 1; // Search tab
+    Future.microtask(() {
+      ref.read(chatStateProvider.notifier).search(keyword);
+    });
   }
 
   Future<void> _startTranscription(BuildContext context, WidgetRef ref, OverlayNotifier notifier, OverlayState state) async {
@@ -312,4 +374,30 @@ class OverlayScreen extends ConsumerWidget {
       ),
     );
   }
+
+  Widget _buildWarningCard(ColorScheme colorScheme, IconData icon, String message) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Card(
+        color: colorScheme.errorContainer,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Icon(icon, color: colorScheme.error),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(message, style: TextStyle(color: colorScheme.onErrorContainer, fontSize: 13)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// Extension to check if a nullable string is null or empty
+extension _NullableStringX on String? {
+  bool isNullOrEmpty() => this == null || this!.isEmpty;
 }
