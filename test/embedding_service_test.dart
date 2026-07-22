@@ -94,5 +94,45 @@ void main() {
       final magnitude = sqrt(v.fold(0.0, (s, x) => s + x * x));
       expect(magnitude, closeTo(1.0, 0.01));
     });
+
+    test('word-level: synonyms have higher similarity than random words', () {
+      final v1 = service.embed('car automobile vehicle engine motor');
+      final v2 = service.embed('automobile car vehicle engine drive');
+      final v3 = service.embed('purple elephant dance jungle forest');
+
+      final simSynonyms = service.cosineSimilarity(v1, v2);
+      final simRandom = service.cosineSimilarity(v1, v3);
+
+      expect(simSynonyms, greaterThan(simRandom));
+      expect(simSynonyms, greaterThan(0.3));
+    });
+
+    test('word-level: related topics cluster together', () {
+      final v1 = service.embed('financial investment stock market portfolio profit');
+      final v2 = service.embed('stock investment market trading portfolio bonds');
+      final v3 = service.embed('recipe dinner cook meal kitchen ingredients');
+
+      final simFinance = service.cosineSimilarity(v1, v2);
+      final simUnrelated = service.cosineSimilarity(v1, v3);
+
+      expect(simFinance, greaterThan(simUnrelated));
+    });
+
+    test('word-level: tech terms cluster together', () {
+      final v1 = service.embed('database server encryption security authentication');
+      final v2 = service.embed('server security authentication permission access');
+      final v3 = service.embed('restaurant food dinner meal kitchen cooking');
+
+      final simTech = service.cosineSimilarity(v1, v2);
+      final simUnrelated = service.cosineSimilarity(v1, v3);
+
+      expect(simTech, greaterThan(simUnrelated));
+    });
+
+    test('stopwords are filtered out', () {
+      final v1 = service.embed('the the the the the the the the the the');
+      final v2 = service.embed('');
+      expect(v1, equals(v2));
+    });
   });
 }
