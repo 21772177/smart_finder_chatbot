@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
@@ -472,52 +471,26 @@ class SettingsScreen extends ConsumerWidget {
 
   Future<void> _backupToDrive(BuildContext context, WidgetRef ref) async {
     final messenger = ScaffoldMessenger.of(context);
-    messenger.showSnackBar(const SnackBar(content: Text('Preparing backup...')));
+    messenger.showSnackBar(const SnackBar(content: Text('Signing in to Google Drive...')));
 
     try {
-      final dir = await getApplicationDocumentsDirectory();
-      final dbFile = File('${dir.path}/second_brain_enc.db');
-      if (!await dbFile.exists()) {
-        messenger.showSnackBar(const SnackBar(content: Text('Database not found')));
-        return;
+      final backupService = CloudBackupService(SecureKeyService());
+
+      if (!await backupService.isSignedIn()) {
+        final signed = await backupService.signIn();
+        if (!signed) {
+          messenger.showSnackBar(const SnackBar(content: Text('Google Sign-In cancelled')));
+          return;
+        }
       }
 
-      final dbBytes = Uint8List.fromList(await dbFile.readAsBytes());
-      final backupService = CloudBackupService(SecureKeyService());
-      final encrypted = await backupService.encryptBytes(dbBytes);
+      messenger.showSnackBar(const SnackBar(content: Text('Uploading encrypted backup...')));
+      await backupService.backupDatabase();
 
-      final backupDir = Directory('${dir.path}/drive_backups');
-      if (!await backupDir.exists()) await backupDir.create(recursive: true);
-
-      final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
-      final backupFile = File('${backupDir.path}/backup_$timestamp.enc');
-
-      // Pack [4-byte iv length][iv][4-byte key length][key bytes][ciphertext]
-      final ivBytes = Uint8List.fromList(encrypted.iv);
-      final keyBytes = Uint8List.fromList(base64Decode(encrypted.keyBase64));
-      final cipherBytes = Uint8List.fromList(encrypted.ciphertext);
-
-      final output = BytesBuilder();
-
-      // Write IV: 4-byte length prefix + IV bytes
-      final ivLenBytes = ByteData(4)..setUint32(0, ivBytes.length, Endian.big);
-      output.add(ivLenBytes.buffer.asUint8List());
-      output.add(ivBytes);
-
-      // Write key: 4-byte length prefix + key bytes
-      final keyLenBytes = ByteData(4)..setUint32(0, keyBytes.length, Endian.big);
-      output.add(keyLenBytes.buffer.asUint8List());
-      output.add(keyBytes);
-
-      // Write ciphertext
-      output.add(cipherBytes);
-
-      await backupFile.writeAsBytes(output.toBytes());
-
-      AppLogger.info('Backup saved', tag: 'BACKUP');
-      messenger.showSnackBar(SnackBar(content: Text('Backup saved to ${backupFile.path}')));
+      AppLogger.info('Cloud backup uploaded', tag: 'BACKUP');
+      messenger.showSnackBar(const SnackBar(content: Text('Backup uploaded to Google Drive')));
     } catch (e, stack) {
-      AppLogger.error('Backup failed', error: e, stackTrace: stack);
+      AppLogger.error('Cloud backup failed', error: e, stackTrace: stack);
       messenger.showSnackBar(SnackBar(content: Text('Backup failed: $e')));
     }
   }
@@ -528,8 +501,8 @@ class SettingsScreen extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Restore from Backup'),
-        content: const Text('This will replace your current database. Make sure you have a recent backup.'),
+        title: const Text('Restore from Drive'),
+        content: const Text('This will download and restore your database from Google Drive. This will replace your current data.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Restore')),
@@ -539,64 +512,26 @@ class SettingsScreen extends ConsumerWidget {
 
     if (confirmed != true) return;
 
-    messenger.showSnackBar(const SnackBar(content: Text('Restoring...')));
+    messenger.showSnackBar(const SnackBar(content: Text('Restoring from Google Drive...')));
 
     try {
-      final dir = await getApplicationDocumentsDirectory();
-      final backupDir = Directory('${dir.path}/drive_backups');
-
-      if (!await backupDir.exists()) {
-        messenger.showSnackBar(const SnackBar(content: Text('No backups found')));
-        return;
-      }
-
-      final files = backupDir.listSync().whereType<File>().toList()
-        ..sort((a, b) => b.path.compareTo(a.path));
-
-      if (files.isEmpty) {
-        messenger.showSnackBar(const SnackBar(content: Text('No backups found')));
-        return;
-      }
-
-      final latestBackup = files.firstWhere(
-        (f) => f.path.endsWith('.enc'),
-        orElse: () => throw Exception('No .enc backup file found'),
-      );
-
-      final allBytes = await latestBackup.readAsBytes();
-      int offset = 0;
-
-      // Read IV length (4 bytes, big-endian)
-      final ivLen = ByteData.sublistView(allBytes, offset, offset + 4).getUint32(0, Endian.big);
-      offset += 4;
-      final ivBytes = allBytes.sublist(offset, offset + ivLen);
-      offset += ivLen;
-
-      // Read key length (4 bytes, big-endian)
-      final keyLen = ByteData.sublistView(allBytes, offset, offset + 4).getUint32(0, Endian.big);
-      offset += 4;
-      final keyBytes = allBytes.sublist(offset, offset + keyLen);
-      offset += keyLen;
-
-      final ciphertext = allBytes.sublist(offset);
-
-      final encrypted = BackupEncrypted(
-        ciphertext: ciphertext,
-        iv: ivBytes,
-        keyBase64: base64Encode(keyBytes),
-      );
-
       final backupService = CloudBackupService(SecureKeyService());
-      final decrypted = await backupService.decryptBytes(encrypted);
 
-      final dbFile = File('${dir.path}/second_brain_enc.db');
-      await dbFile.writeAsBytes(decrypted);
+      if (!await backupService.isSignedIn()) {
+        final signed = await backupService.signIn();
+        if (!signed) {
+          messenger.showSnackBar(const SnackBar(content: Text('Google Sign-In cancelled')));
+          return;
+        }
+      }
+
+      await backupService.restoreDatabase();
 
       ref.invalidate(memoryRepositoryProvider);
-      AppLogger.info('Database restored from backup', tag: 'BACKUP');
+      AppLogger.info('Database restored from Google Drive', tag: 'BACKUP');
       messenger.showSnackBar(const SnackBar(content: Text('Database restored successfully. Restart app.')));
     } catch (e, stack) {
-      AppLogger.error('Restore failed', error: e, stackTrace: stack);
+      AppLogger.error('Cloud restore failed', error: e, stackTrace: stack);
       messenger.showSnackBar(SnackBar(content: Text('Restore failed: $e')));
     }
   }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import '../../app.dart';
 import 'chat_notifier.dart';
 import '../memory/memory_model.dart';
 import '../memory/memory_repository.dart';
@@ -57,7 +58,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     if (confirmed != true) return;
 
-    await ref.read(memoryRepositoryProvider).deleteMemoryEntry(entry.id);
+    await ref.read(memoryRepositoryProvider).deleteEntry(entry.id);
     ref.invalidate(memoryRepositoryProvider);
     ref.read(chatStateProvider.notifier).loadRecent();
 
@@ -269,8 +270,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             const SizedBox(height: 24),
             FilledButton.tonal.icon(
               onPressed: () {
-                // Switch to overlay tab
-                // We need access to the tab provider — use a callback approach
+                ref.read(selectedTabProvider.notifier).state = 0;
               },
               icon: const Icon(Icons.smart_toy),
               label: const Text('Go to Overlay'),
