@@ -87,7 +87,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 height: 4,
                 margin: const EdgeInsets.only(bottom: 16),
                 decoration: BoxDecoration(
-                  color: Theme.of(ctx).colorScheme.onSurfaceVariant.withOpacity(0.4),
+                  color: Theme.of(ctx).colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -244,7 +244,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             Icon(
               Icons.search_off_rounded,
               size: 80,
-              color: theme.colorScheme.onSurfaceVariant.withOpacity(0.5),
+              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
             ),
             const SizedBox(height: 24),
             Text(

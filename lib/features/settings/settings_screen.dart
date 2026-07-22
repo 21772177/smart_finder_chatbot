@@ -11,7 +11,6 @@ import '../security/secure_key_service.dart';
 import 'settings_service.dart';
 import 'blocked_apps_screen.dart';
 import '../analyze/cloud_analysis_service.dart';
-import '../analyze/local_llm_service.dart';
 import '../permissions/permission_dashboard.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -133,20 +132,15 @@ class SettingsScreen extends ConsumerWidget {
                 const Divider(height: 1),
                 SwitchListTile(
                   title: const Text('Local LLM'),
-                  subtitle: const Text('On-device inference (Gemma/Phi/TinyLlama)'),
-                  value: settings.enableLocalLLM,
-                  onChanged: (v) => ref.read(settingsServiceProvider).enableLocalLLM = v,
+                  subtitle: const Text('On-device inference — coming soon'),
+                  value: false,
+                  onChanged: null,
                 ),
-                if (settings.enableLocalLLM) ...LocalLLMService.recommendedModels.map(
-                  (model) => ListTile(
-                    leading: const Icon(Icons.model_training),
-                    title: Text(model.name),
-                    subtitle: Text('${model.description} • ${model.sizeMb}MB'),
-                    trailing: FilledButton.tonal(
-                      onPressed: () => _downloadModel(context, ref, model),
-                      child: const Text('Download'),
-                    ),
-                  ),
+                const ListTile(
+                  leading: Icon(Icons.info_outline),
+                  title: Text('Local LLM requires native llama.cpp build'),
+                  subtitle: Text('Use Cloud LLM (Gemini/OpenAI/Anthropic) in the meantime.'),
+                  dense: true,
                 ),
               ],
             ),
@@ -369,38 +363,6 @@ class SettingsScreen extends ConsumerWidget {
         ),
       ),
     );
-  }
-
-  Future<void> _downloadModel(BuildContext context, WidgetRef ref, RecommendedModel model) async {
-    final messenger = ScaffoldMessenger.of(context);
-    final llm = ref.read(localLlmServiceProvider);
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Download ${model.name}'),
-        content: Text(
-          'This will download a ${model.sizeMb}MB model file. '
-          'Download over Wi-Fi recommended.',
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Download')),
-        ],
-      ),
-    );
-
-    if (confirmed != true) return;
-
-    messenger.showSnackBar(const SnackBar(content: Text('Download started...'), duration: Duration(seconds: 2)));
-
-    final filename = model.url.split('/').last;
-    final success = await llm.downloadModel(model.url, filename);
-
-    if (context.mounted) {
-      messenger.showSnackBar(SnackBar(content: Text(success ? 'Model downloaded successfully' : 'Download failed')));
-      if (success) ref.invalidate(localLlmServiceProvider);
-    }
   }
 
   Future<void> _exportData(BuildContext context, WidgetRef ref) async {
