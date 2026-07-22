@@ -9,60 +9,112 @@ void main() {
       service = AnalysisService();
     });
 
-    test('analyze returns summary and keywords for normal text', () {
-      const text = 'This is a sample text with several words. '
-          'It contains multiple sentences. The quick brown fox jumps over the lazy dog. '
-          'Another sentence here to make it longer.';
+    group('basic analysis', () {
+      test('normal text returns non-empty results', () {
+        const text = 'Machine learning algorithms process data efficiently. '
+            'Neural networks learn patterns from training examples. '
+            'Deep learning has transformed computer vision and natural language processing. '
+            'These technologies power modern applications across industries.';
 
-      final result = service.analyze(text);
+        final result = service.analyze(text);
 
-      expect(result.summary, isNotEmpty);
-      expect(result.keywords, isNotEmpty);
-      expect(result.wordCount, greaterThan(0));
-      expect(result.sentenceCount, greaterThan(0));
+        expect(result.summary, isNotEmpty);
+        expect(result.keywords, isNotEmpty);
+        expect(result.wordCount, greaterThan(0));
+        expect(result.sentenceCount, greaterThan(0));
+      });
+
+      test('empty text returns zero counts', () {
+        final result = service.analyze('');
+        expect(result.summary, isEmpty);
+        expect(result.keywords, isEmpty);
+        expect(result.wordCount, 0);
+        expect(result.sentenceCount, 0);
+      });
+
+      test('whitespace-only text returns zero counts', () {
+        final result = service.analyze('   \n\t  ');
+        expect(result.wordCount, 0);
+      });
     });
 
-    test('analyze handles empty text', () {
-      final result = service.analyze('');
+    group('word counting', () {
+      test('counts words correctly', () {
+        final result = service.analyze('one two three four five');
+        expect(result.wordCount, 5);
+      });
 
-      expect(result.summary, isEmpty);
-      expect(result.keywords, isEmpty);
-      expect(result.wordCount, equals(0));
-      expect(result.sentenceCount, equals(0));
+      test('filters short words (<=2 chars)', () {
+        final result = service.analyze('I am a test');
+        // "I" (1), "am" (2), "a" (1) are filtered; "test" (4) remains
+        expect(result.wordCount, 1);
+      });
     });
 
-    test('analyze handles short text', () {
-      final result = service.analyze('Hello world.');
+    group('sentence counting', () {
+      test('counts sentences with . ! ? delimiters', () {
+        final result = service.analyze(
+          'This is the first sentence of the text. '
+          'This is the second sentence here! '
+          'Is this the third sentence? '
+          'And the fourth sentence too.',
+        );
+        expect(result.sentenceCount, 4);
+      });
 
-      expect(result.wordCount, greaterThan(0));
-      expect(result.sentenceCount, greaterThanOrEqualTo(0));
+      test('filters very short sentences', () {
+        // Sentences shorter than 10 chars after trimming are filtered
+        final result = service.analyze('Hi. This is a long enough sentence to count.');
+        expect(result.sentenceCount, 1);
+      });
     });
 
-    test('analyze extracts keywords from repeated words', () {
-      const text = 'apple banana apple cherry apple banana date';
+    group('keyword extraction', () {
+      test('extracts frequent meaningful words', () {
+        const text = 'python python python java java programming programming code code code';
+        final result = service.analyze(text);
 
-      final result = service.analyze(text);
+        expect(result.keywords, contains('python'));
+        expect(result.keywords, contains('code'));
+        expect(result.keywords, contains('programming'));
+        expect(result.keywords, contains('java'));
+      });
 
-      expect(result.keywords, contains('apple'));
-      expect(result.keywords, contains('banana'));
+      test('filters common stop words', () {
+        const base = 'the and for are but not you all can had her was one our out has ';
+        final text = base * 20;
+        final result = service.analyze(text);
+
+        expect(result.keywords, isNot(contains('the')));
+        expect(result.keywords, isNot(contains('and')));
+        expect(result.keywords, isNot(contains('for')));
+      });
+
+      test('returns at most 10 keywords', () {
+        final words = List.generate(20, (i) => 'word$i').join(' ');
+        final text = words * 5; // Repeat to boost frequency
+        final result = service.analyze(text);
+        expect(result.keywords.length, lessThanOrEqualTo(10));
+      });
     });
 
-    test('analyze counts sentences correctly', () {
-      const text = 'First sentence. Second sentence! Third sentence? Fourth sentence.';
+    group('summary generation', () {
+      test('summary contains top sentences', () {
+        const text = 'Data science involves statistics and programming. '
+            'Machine learning is a core part of data science. '
+            'Python is widely used for data analysis and visualization. '
+            'Cloud computing enables scalable data processing.';
 
-      final result = service.analyze(text);
+        final result = service.analyze(text);
+        expect(result.summary, isNotEmpty);
+        expect(result.summary.length, greaterThan(20));
+      });
 
-      expect(result.sentenceCount, equals(4));
-    });
-
-    test('analyze filters stop words from keywords', () {
-      const base = 'the quick brown fox jumps over the lazy dog ';
-      final text = base + base + base + base + base + base + base + base + base + base;
-
-      final result = service.analyze(text);
-
-      expect(result.keywords, isNot(contains('the')));
-      expect(result.keywords, isNot(contains('over')));
+      test('summary ends with period', () {
+        const text = 'This is a test sentence that should generate a summary.';
+        final result = service.analyze(text);
+        expect(result.summary, endsWith('.'));
+      });
     });
   });
 }

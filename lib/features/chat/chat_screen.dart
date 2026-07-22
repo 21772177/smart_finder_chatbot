@@ -104,12 +104,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     color: Theme.of(ctx).colorScheme.onSurfaceVariant,
                   ),
                 ),
-                if (entry.sourceApp.isNotEmpty) ...[
+                if (entry.sourceApp != null && entry.sourceApp!.isNotEmpty) ...[
                   const SizedBox(width: 12),
                   Icon(Icons.phone_android, size: 14, color: Theme.of(ctx).colorScheme.onSurfaceVariant),
                   const SizedBox(width: 4),
                   Text(
-                    entry.sourceApp,
+                    entry.sourceApp!,
                     style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
                       color: Theme.of(ctx).colorScheme.onSurfaceVariant,
                     ),
@@ -154,11 +154,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(chatStateProvider);
     final theme = Theme.of(context);
-    final hasNoResults = state.messages.length <= 1 &&
-        state.messages.isNotEmpty &&
-        !state.messages.first.isUser &&
-        state.messages.first.text.contains('No memories');
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Search Memories'),
@@ -268,7 +263,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
-            FilledButton.tonal.icon(
+            FilledButton.tonalIcon(
               onPressed: () {
                 ref.read(selectedTabProvider.notifier).state = 0;
               },

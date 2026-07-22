@@ -65,11 +65,11 @@ class LocalLLMService {
         return true;
       }
       _status = LocalLLMStatus.error;
-      _error = 'Download failed';
+      _error = 'Download failed or was cancelled';
       return false;
     } on PlatformException catch (e) {
       _status = LocalLLMStatus.error;
-      _error = e.message;
+      _error = e.message ?? 'Download failed';
       return false;
     }
   }
@@ -90,7 +90,7 @@ class LocalLLMService {
       return false;
     } on PlatformException catch (e) {
       _status = LocalLLMStatus.error;
-      _error = e.message;
+      _error = _friendlyError(e.code, e.message);
       return false;
     }
   }
@@ -119,10 +119,10 @@ class LocalLLMService {
     _modelName = null;
   }
 
-  Future<String?> _localAnalyze(String text, String prompt) async {
+  Future<String?> analyze(String text, {String? mode, String? targetLanguage}) async {
     if (_status != LocalLLMStatus.ready) return null;
-    final response = await generate(prompt);
-    return response;
+    final prompt = _buildPrompt(text, mode, targetLanguage);
+    return generate(prompt);
   }
 
   String _buildPrompt(String text, String? mode, String? targetLanguage) {
@@ -132,14 +132,27 @@ class LocalLLMService {
       case 'translate':
         final lang = targetLanguage ?? 'English';
         return 'Translate the following text to $lang:\n\n$text';
+      case 'takeaways':
+        return 'Extract the key takeaways from the following text:\n\n$text';
       default:
         return 'Summarize the following text concisely:\n\n$text';
     }
   }
 
-  Future<String?> analyze(String text, {String? mode, String? targetLanguage}) async {
-    final prompt = _buildPrompt(text, mode, targetLanguage);
-    return _localAnalyze(text, prompt);
+  String _friendlyError(String code, String? message) {
+    switch (code) {
+      case 'MODEL_NOT_FOUND':
+        return 'Model file not found. Please download the model first.';
+      case 'MODEL_INVALID':
+        return 'Model file is corrupted or incomplete. Please re-download.';
+      case 'LLM_NOT_AVAILABLE':
+      case 'LLM_ENGINE_ERROR':
+        return 'Local LLM engine is not available in this build. '
+            'Use Cloud LLM (Gemini/OpenAI/Anthropic) instead, '
+            'or wait for a future update with native llama.cpp support.';
+      default:
+        return message ?? 'Unknown error loading model';
+    }
   }
 }
 

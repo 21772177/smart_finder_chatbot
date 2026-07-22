@@ -8,6 +8,7 @@ import 'dart:ui';
 export 'app.dart';
 import 'app.dart';
 
+import 'core/logger.dart';
 import 'features/settings/settings_service.dart';
 
 void main() async {
@@ -17,18 +18,26 @@ void main() async {
     DeviceOrientation.portraitDown,
   ]);
 
-  await Firebase.initializeApp();
+  // Initialize Firebase — gracefully degrade if google-services.json is missing
+  bool firebaseReady = false;
+  try {
+    await Firebase.initializeApp();
+    firebaseReady = true;
+  } catch (_) {
+    // Firebase not configured (missing google-services.json or Firebase project).
+    // App runs without Crashlytics.
+  }
 
-  // Pass all uncaught errors to Crashlytics
-  FlutterError.onError = (errorDetails) {
-    FirebaseCrashlytics.instance.recordFlutterFatalError(errorDetails);
-  };
-
-  // Pass all uncaught asynchronous errors to Crashlytics
-  PlatformDispatcher.instance.onError = (error, stack) {
-    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
-    return true;
-  };
+  if (firebaseReady) {
+    AppLogger.init(firebaseReady: true);
+    FlutterError.onError = (errorDetails) {
+      FirebaseCrashlytics.instance.recordFlutterFatalError(errorDetails);
+    };
+    PlatformDispatcher.instance.onError = (error, stack) {
+      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+      return true;
+    };
+  }
 
   final prefs = await SharedPreferences.getInstance();
 

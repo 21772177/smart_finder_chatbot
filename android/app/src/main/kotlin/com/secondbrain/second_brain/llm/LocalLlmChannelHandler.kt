@@ -93,8 +93,23 @@ class LocalLlmChannelHandler {
             } else {
                 File(context.filesDir, "models/$path").absolutePath
             }
+            val modelFile = File(resolvedPath)
+            if (!modelFile.exists()) {
+                result.error("MODEL_NOT_FOUND", "Model file not found: $resolvedPath", null)
+                return
+            }
+            if (modelFile.length() < 1024) {
+                result.error("MODEL_INVALID", "Model file too small (${modelFile.length()} bytes) — download may be incomplete", null)
+                return
+            }
             val success = LlmNative.loadModel(resolvedPath)
+            if (!success) {
+                result.error("LLM_ENGINE_ERROR", "Native LLM engine failed to load the model. The local LLM engine requires llama.cpp native libraries which are not yet bundled with this build.", null)
+                return
+            }
             result.success(success)
+        } catch (e: UnsatisfiedLinkError) {
+            result.error("LLM_NOT_AVAILABLE", "Local LLM engine is not available in this build. Native library 'second_brain_llm' could not be loaded.", null)
         } catch (e: Exception) {
             result.error("LOAD_ERROR", e.message, null)
         }

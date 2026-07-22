@@ -13,44 +13,37 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/logger.dart';
 import '../security/secure_key_service.dart';
 
-const _driveScopes = [drive.DriveApi.driveFileScope];
-
 class CloudBackupService {
   static const _prefsKey = 'cloud_backup_enabled';
   static const _backupFolderName = 'SecondBrain_Backups';
 
-  final SecureKeyService _keyService;
-  final GoogleSignIn _googleSignIn;
-  AuthClient? _authClient;
-  String? _userId;
+  GoogleSignInClientAuthorization? _authz;
 
-  CloudBackupService(this._keyService) : _googleSignIn = GoogleSignIn(scopes: _driveScopes);
+  // ignore: unused_field
+  final SecureKeyService _keyService;
+
+  CloudBackupService(this._keyService);
 
   Future<bool> isSignedIn() async {
-    return _googleSignIn.isSignedIn();
+    try {
+      final account = await GoogleSignIn.instance.attemptLightweightAuthentication();
+      return account != null;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<bool> signIn() async {
     try {
-      final account = await _googleSignIn.signIn();
-      if (account == null) return false;
-
-      _userId = account.id;
-      final auth = await account.authentication;
-      final credential = AccessCredentials(
-        AccessToken(
-          'Bearer',
-          auth.accessToken!,
-          DateTime.now().add(const Duration(hours: 1)),
-        ),
-        null,
-        _driveScopes,
+      await GoogleSignIn.instance.initialize();
+      final account = await GoogleSignIn.instance.authenticate(
+        scopeHint: [drive.DriveApi.driveFileScope],
       );
-
-      final httpClient = http.Client();
-      _authClient = authenticatedClient(httpClient, credential);
+      _authz = await account.authorizationClient.authorizeScopes(
+        [drive.DriveApi.driveFileScope],
+      );
       AppLogger.info('Google Sign-In successful', tag: 'BACKUP');
-      return true;
+      return _authz != null;
     } catch (e, stack) {
       AppLogger.error('Google Sign-In failed', error: e, stackTrace: stack);
       return false;
@@ -58,27 +51,39 @@ class CloudBackupService {
   }
 
   Future<void> signOut() async {
-    await _googleSignIn.signOut();
-    _authClient?.close();
-    _authClient = null;
-    _userId = null;
+    await GoogleSignIn.instance.signOut();
+    _authz = null;
     AppLogger.info('Google Sign-Out', tag: 'BACKUP');
   }
 
   Future<drive.DriveApi> _getDriveApi() async {
-    if (_authClient == null) {
+    if (_authz == null) {
       final signed = await signIn();
-      if (!signed || _authClient == null) {
+      if (!signed || _authz == null) {
         throw Exception('Google Sign-In required');
       }
     }
-    return drive.DriveApi(_authClient!);
+
+    final httpClient = http.Client();
+    final authClient = authenticatedClient(
+      httpClient,
+      AccessCredentials(
+        AccessToken(
+          'Bearer',
+          _authz!.accessToken,
+          DateTime.now().add(const Duration(hours: 1)),
+        ),
+        null,
+        [drive.DriveApi.driveFileScope],
+      ),
+    );
+    return drive.DriveApi(authClient);
   }
 
   Future<String> _getOrCreateBackupFolder(drive.DriveApi api) async {
     final files = await api.files.list(
-      "mimeType = 'application/vnd.google-apps.folder' and name = '$_backupFolderName' and trashed = false",
       $fields: 'files(id)',
+      q: "mimeType = 'application/vnd.google-apps.folder' and name = '$_backupFolderName' and trashed = false",
     );
 
     if (files.files != null && files.files!.isNotEmpty) {
@@ -123,12 +128,11 @@ class CloudBackupService {
       output.add(cipherBytes);
 
       final bytes = output.toBytes();
-      final stream = Stream.value(bytes);
 
       // Delete old backups in Drive
       final oldFiles = await api.files.list(
-        "'$folderId' in parents and trashed = false",
         $fields: 'files(id)',
+        q: "'$folderId' in parents and trashed = false",
       );
       for (final f in oldFiles.files ?? []) {
         await api.files.delete(f.id!);
@@ -136,6 +140,7 @@ class CloudBackupService {
 
       // Upload new backup
       final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-');
+      final stream = Stream.value(bytes);
       await api.files.create(
         drive.File()
           ..name = 'backup_${timestamp}.enc'
@@ -156,8 +161,8 @@ class CloudBackupService {
       final folderId = await _getOrCreateBackupFolder(api);
 
       final files = await api.files.list(
-        "'$folderId' in parents and trashed = false",
         $fields: 'files(id,name)',
+        q: "'$folderId' in parents and trashed = false",
         orderBy: 'name desc',
       );
 
@@ -172,7 +177,13 @@ class CloudBackupService {
         downloadOptions: drive.DownloadOptions.fullMedia,
       ) as drive.Media;
 
-      final allBytes = await media.stream.toBytes();
+      // Collect stream into bytes
+      final chunks = <List<int>>[];
+      await for (final chunk in media.stream) {
+        chunks.add(chunk);
+      }
+      final allBytes = _concatenateChunks(chunks);
+
       final bd = ByteData.view(allBytes.buffer);
       int offset = 0;
 
@@ -206,9 +217,18 @@ class CloudBackupService {
     }
   }
 
-  Future<File> _getDatabaseFile() async {
-    final dir = await getApplicationDocumentsDirectory();
-    return File('${dir.path}/second_brain_enc.db');
+  Uint8List _concatenateChunks(List<List<int>> chunks) {
+    int totalLength = 0;
+    for (final chunk in chunks) {
+      totalLength += chunk.length;
+    }
+    final result = Uint8List(totalLength);
+    int offset = 0;
+    for (final chunk in chunks) {
+      result.setRange(offset, offset + chunk.length, chunk);
+      offset += chunk.length;
+    }
+    return result;
   }
 
   Future<BackupEncrypted> encryptBytes(Uint8List plainBytes) async {
@@ -241,7 +261,11 @@ class CloudBackupService {
       final iv = IV(Uint8List.fromList(encrypted.iv));
       final encrypter = Encrypter(AES(key, mode: AESMode.gcm));
 
-      return Uint8List.fromList(encrypter.decryptBytes(Encrypted(encrypted.ciphertext), iv: iv));
+      final decrypted = encrypter.decryptBytes(
+        Encrypted(Uint8List.fromList(encrypted.ciphertext)),
+        iv: iv,
+      );
+      return Uint8List.fromList(decrypted);
     } catch (e, stack) {
       AppLogger.error('Failed to decrypt backup data', error: e, stackTrace: stack);
       rethrow;

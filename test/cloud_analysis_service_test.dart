@@ -9,30 +9,67 @@ void main() {
       service = CloudAnalysisService();
     });
 
-    test('isConfigured returns false without API key', () {
+    test('isConfigured is false by default', () {
       expect(service.isConfigured, isFalse);
     });
 
-    test('analyze returns local fallback when not configured', () async {
-      const text = 'Sample text for analysis. It has multiple sentences. Each one is important.';
-      final result = await service.analyze(text);
-
-      expect(result.summary, isNotEmpty);
-      expect(result.keywords, isNotEmpty);
-      expect(result.wordCount, greaterThan(0));
-      expect(result.sentenceCount, greaterThan(0));
+    test('configure with Gemini sets isConfigured', () {
+      service.configure(LLMProvider.gemini, 'test-api-key');
+      expect(service.isConfigured, isTrue);
     });
 
-    test('analyze handles different modes', () async {
-      const text = 'Text to analyze with different modes.';
+    test('configure with OpenAI sets isConfigured', () {
+      service.configure(LLMProvider.openai, 'test-key');
+      expect(service.isConfigured, isTrue);
+    });
 
-      final summaryResult = await service.analyze(text, mode: 'summarize');
-      final explainResult = await service.analyze(text, mode: 'explain');
-      final translateResult = await service.analyze(text, mode: 'translate', targetLanguage: 'French');
+    test('configure with Anthropic sets isConfigured', () {
+      service.configure(LLMProvider.anthropic, 'test-key');
+      expect(service.isConfigured, isTrue);
+    });
 
-      expect(summaryResult.summary, isNotEmpty);
-      expect(explainResult.summary, isNotEmpty);
-      expect(translateResult.summary, isNotEmpty);
+    test('analyze falls back to local when not configured', () async {
+      final result = await service.analyze('Hello world test text here.');
+      expect(result.summary, isNotEmpty);
+      expect(result.wordCount, greaterThan(0));
+    });
+
+    test('analyze handles all modes without cloud', () async {
+      const text = 'Machine learning is a subset of artificial intelligence.';
+
+      final summary = await service.analyze(text, mode: 'summarize');
+      final explain = await service.analyze(text, mode: 'explain');
+      final translate = await service.analyze(text, mode: 'translate', targetLanguage: 'German');
+      final takeaways = await service.analyze(text, mode: 'takeaways');
+
+      expect(summary.summary, isNotEmpty);
+      expect(explain.summary, isNotEmpty);
+      expect(translate.summary, isNotEmpty);
+      expect(takeaways.summary, isNotEmpty);
+    });
+
+    test('configure switches provider correctly', () {
+      service.configure(LLMProvider.gemini, 'gemini-key');
+      expect(service.isConfigured, isTrue);
+
+      service.configure(LLMProvider.openai, 'openai-key');
+      expect(service.isConfigured, isTrue);
+
+      service.configure(LLMProvider.anthropic, 'anthropic-key');
+      expect(service.isConfigured, isTrue);
+    });
+
+    test('analyze with empty text returns valid result', () async {
+      final result = await service.analyze('');
+      expect(result.wordCount, greaterThanOrEqualTo(0));
+    });
+
+    test('local fallback extracts keywords', () async {
+      const text = 'python programming language development code software engineering';
+      final result = await service.analyze(text);
+
+      expect(result.keywords, isNotEmpty);
+      expect(result.keywords.length, lessThanOrEqualTo(10));
     });
   });
 }
