@@ -152,6 +152,14 @@ class OverlayNotifier extends StateNotifier<OverlayState> {
       if (uiText != null && uiText.length > 20) {
         text = uiText;
       } else {
+        final hasPerm = await _captureService.hasMediaProjectionPermission();
+        if (!hasPerm) {
+          final granted = await _captureService.requestMediaProjectionPermission();
+          if (!granted) {
+            state = state.copyWith(isCapturing: false, lastCaptureError: 'Screen capture permission denied. Please grant it in Settings > Permissions.');
+            return;
+          }
+        }
         final captureResult = await _captureService.captureCurrentScreen();
         if (!captureResult.isSuccess) {
           state = state.copyWith(isCapturing: false, lastCaptureError: captureResult.error);

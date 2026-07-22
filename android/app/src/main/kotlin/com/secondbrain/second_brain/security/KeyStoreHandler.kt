@@ -107,8 +107,7 @@ class KeyStoreHandler(private val context: Context) {
 
     private fun generateRandomHexKey(length: Int): String {
         val hexChars = "0123456789abcdef"
-        val seed = System.nanoTime()
-        val random = java.util.Random(seed)
-        return (1..length).map { hexChars[random.nextInt(16)] }.joinToString("")
+        val secureRandom = java.security.SecureRandom()
+        return (1..length).map { hexChars[secureRandom.nextInt(16)] }.joinToString("")
     }
 }

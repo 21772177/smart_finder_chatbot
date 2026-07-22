@@ -111,9 +111,13 @@ class CloudBackupService {
       final dbBytes = Uint8List.fromList(await dbFile.readAsBytes());
       final encrypted = await encryptBytes(dbBytes);
 
-      // Pack [4-byte iv len][iv][4-byte key len][key][ciphertext]
+      // Encrypt the backup key with the Keystore-protected DB key
+      final dbKey = await _keyService.getDbKey();
+      final wrappedKey = wrapKey(encrypted.keyBase64, dbKey);
+
+      // Pack [4-byte iv len][iv][4-byte wrapped key len][wrapped key][ciphertext]
       final ivBytes = Uint8List.fromList(encrypted.iv);
-      final keyBytes = Uint8List.fromList(base64Decode(encrypted.keyBase64));
+      final wrappedKeyBytes = Uint8List.fromList(base64Decode(wrappedKey));
       final cipherBytes = Uint8List.fromList(encrypted.ciphertext);
 
       final output = BytesBuilder();
@@ -122,9 +126,9 @@ class CloudBackupService {
       output.add(ivLenBuf.buffer.asUint8List());
       output.add(ivBytes);
 
-      final keyLenBuf = ByteData(4)..setUint32(0, keyBytes.length, Endian.big);
+      final keyLenBuf = ByteData(4)..setUint32(0, wrappedKeyBytes.length, Endian.big);
       output.add(keyLenBuf.buffer.asUint8List());
-      output.add(keyBytes);
+      output.add(wrappedKeyBytes);
       output.add(cipherBytes);
 
       final bytes = output.toBytes();
@@ -194,15 +198,19 @@ class CloudBackupService {
 
       final keyLen = bd.getUint32(offset, Endian.big);
       offset += 4;
-      final keyBytes = allBytes.sublist(offset, offset + keyLen);
+      final wrappedKeyBytes = allBytes.sublist(offset, offset + keyLen);
       offset += keyLen;
 
       final ciphertext = allBytes.sublist(offset);
 
+      // Unwrap the backup key with the Keystore-protected DB key
+      final dbKey = await _keyService.getDbKey();
+      final keyBase64 = unwrapKey(base64Encode(wrappedKeyBytes), dbKey);
+
       final encrypted = BackupEncrypted(
         ciphertext: ciphertext,
         iv: ivBytes,
-        keyBase64: base64Encode(keyBytes),
+        keyBase64: keyBase64,
       );
 
       final decrypted = await decryptBytes(encrypted);
@@ -229,6 +237,67 @@ class CloudBackupService {
       offset += chunk.length;
     }
     return result;
+  }
+
+  /// Wraps the backup AES key using the Keystore-protected DB key.
+  /// Format: [4-byte iv len][iv][ciphertext]
+  String wrapKey(String backupKeyBase64, String dbKeyHex) {
+    final backupKeyBytes = base64Decode(backupKeyBase64);
+    final wrappingKey = _deriveWrappingKey(dbKeyHex);
+
+    final random = Random.secure();
+    final ivBytes = List<int>.generate(16, (_) => random.nextInt(256));
+
+    final key = Key(Uint8List.fromList(wrappingKey));
+    final iv = IV(Uint8List.fromList(ivBytes));
+    final encrypter = Encrypter(AES(key, mode: AESMode.gcm));
+    final encrypted = encrypter.encryptBytes(backupKeyBytes, iv: iv);
+
+    final output = BytesBuilder();
+    final ivLenBuf = ByteData(4)..setUint32(0, ivBytes.length, Endian.big);
+    output.add(ivLenBuf.buffer.asUint8List());
+    output.add(ivBytes);
+    output.add(encrypted.bytes);
+    return base64Encode(output.toBytes());
+  }
+
+  /// Unwraps the backup AES key using the Keystore-protected DB key.
+  String unwrapKey(String wrappedKeyBase64, String dbKeyHex) {
+    final wrappedBytes = base64Decode(wrappedKeyBase64);
+    final wrappingKey = _deriveWrappingKey(dbKeyHex);
+
+    final bd = ByteData.view(wrappedBytes.buffer);
+    int offset = 0;
+    final ivLen = bd.getUint32(offset, Endian.big);
+    offset += 4;
+    final ivBytes = wrappedBytes.sublist(offset, offset + ivLen);
+    offset += ivLen;
+    final ciphertext = wrappedBytes.sublist(offset);
+
+    final key = Key(Uint8List.fromList(wrappingKey));
+    final iv = IV(Uint8List.fromList(ivBytes));
+    final encrypter = Encrypter(AES(key, mode: AESMode.gcm));
+    final decrypted = encrypter.decryptBytes(
+      Encrypted(Uint8List.fromList(ciphertext)),
+      iv: iv,
+    );
+    return base64Encode(decrypted);
+  }
+
+  List<int> _deriveWrappingKey(String dbKeyHex) {
+    final keyChars = '0123456789abcdef';
+    final bytes = <int>[];
+    for (var i = 0; i < dbKeyHex.length && bytes.length < 32; i += 2) {
+      final hi = keyChars.indexOf(dbKeyHex[i]);
+      final lo = (i + 1 < dbKeyHex.length) ? keyChars.indexOf(dbKeyHex[i + 1]) : 0;
+      if (hi >= 0 && lo >= 0) {
+        bytes.add((hi << 4) | lo);
+      }
+    }
+    while (bytes.length < 32) {
+      bytes.add(0);
+    }
+    return bytes;
   }
 
   Future<BackupEncrypted> encryptBytes(Uint8List plainBytes) async {

@@ -111,6 +111,49 @@ void main() {
 
       expect(decrypted, equals(plain));
     });
+
+    test('wrapKey produces wrapped result', () {
+      final backupKey = 'dGVzdGJhY2t1cGtleWZvcnRlc3RpbmcxMjM0NTY3ODkw'; // base64 of "testbackupkeyfortesting1234567890"
+      final dbKey = 'ab12cd34ef56ab12cd34ef56ab12cd34ef56ab12cd34ef56ab12cd34ef56ab12';
+
+      final wrapped = service.wrapKey(backupKey, dbKey);
+
+      expect(wrapped, isNotEmpty);
+      expect(wrapped, isNot(equals(backupKey)));
+    });
+
+    test('unwrapKey reverses wrapKey', () {
+      final backupKey = 'dGVzdGJhY2t1cGtleWZvcnRlc3RpbmcxMjM0NTY3ODkw';
+      final dbKey = 'ab12cd34ef56ab12cd34ef56ab12cd34ef56ab12cd34ef56ab12cd34ef56ab12';
+
+      final wrapped = service.wrapKey(backupKey, dbKey);
+      final unwrapped = service.unwrapKey(wrapped, dbKey);
+
+      expect(unwrapped, equals(backupKey));
+    });
+
+    test('wrapKey produces different output each time (random IV)', () {
+      final backupKey = 'dGVzdGJhY2t1cGtleWZvcnRlc3RpbmcxMjM0NTY3ODkw';
+      final dbKey = 'ab12cd34ef56ab12cd34ef56ab12cd34ef56ab12cd34ef56ab12cd34ef56ab12';
+
+      final wrapped1 = service.wrapKey(backupKey, dbKey);
+      final wrapped2 = service.wrapKey(backupKey, dbKey);
+
+      expect(wrapped1, isNot(equals(wrapped2)));
+    });
+
+    test('unwrapKey fails with wrong DB key', () {
+      final backupKey = 'dGVzdGJhY2t1cGtleWZvcnRlc3RpbmcxMjM0NTY3ODkw';
+      final dbKey = 'ab12cd34ef56ab12cd34ef56ab12cd34ef56ab12cd34ef56ab12cd34ef56ab12';
+      final wrongKey = 'ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00';
+
+      final wrapped = service.wrapKey(backupKey, dbKey);
+
+      expect(
+        () => service.unwrapKey(wrapped, wrongKey),
+        throwsA(anything),
+      );
+    });
   });
 }
 

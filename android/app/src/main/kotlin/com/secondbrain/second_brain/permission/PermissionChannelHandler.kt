@@ -9,6 +9,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
 import androidx.core.content.ContextCompat
+import com.secondbrain.second_brain.capture.CaptureChannelHandler
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
@@ -66,6 +67,7 @@ class PermissionChannelHandler {
             "accessibility" to isAccessibilityEnabled(activity),
             "notifications" to areNotificationsEnabled(activity),
             "audio" to hasPermission(activity, Manifest.permission.RECORD_AUDIO),
+            "media_projection" to (CaptureChannelHandler.projectionIntent != null),
         )
     }
 

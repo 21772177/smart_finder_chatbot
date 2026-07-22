@@ -16,6 +16,7 @@ class PermissionDashboard extends ConsumerWidget {
     _PermDef('accessibility', 'Accessibility Service', 'Read screen content and track current app', Icons.accessibility),
     _PermDef('notifications', 'Notifications', 'Show persistent service notification', Icons.notifications),
     _PermDef('audio', 'Microphone', 'Record audio for on-device transcription', Icons.mic),
+    _PermDef('media_projection', 'Screen Capture', 'Capture screen content for OCR analysis', Icons.screenshot),
   ];
 
   @override
@@ -88,6 +89,8 @@ class PermissionDashboard extends ConsumerWidget {
       case 'notifications':
         await service.openNotificationSettings();
       case 'audio':
+        await service.openAppSettings();
+      case 'media_projection':
         await service.openAppSettings();
     }
     ref.invalidate(permissionStatusProvider);
