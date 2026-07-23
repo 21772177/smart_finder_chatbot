@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/logger.dart';
 import '../capture/ocr_service.dart';
 import '../capture/screen_capture_service.dart';
 import '../capture/capture_notifier.dart';
@@ -144,86 +145,92 @@ class OverlayNotifier extends StateNotifier<OverlayState> {
 
     state = state.copyWith(isCapturing: true, lastCaptureError: null, lastCaptureText: null, summary: null, keywords: []);
 
-    String text;
-    if (overrideText != null) {
-      text = overrideText;
-    } else {
-      final uiText = await _service.extractUiText();
-      if (uiText != null && uiText.length > 20) {
-        text = uiText;
+    try {
+      String text;
+      if (overrideText != null) {
+        text = overrideText;
       } else {
-        final hasPerm = await _captureService.hasMediaProjectionPermission();
-        if (!hasPerm) {
-          final granted = await _captureService.requestMediaProjectionPermission();
-          if (!granted) {
-            state = state.copyWith(isCapturing: false, lastCaptureError: 'Screen capture permission denied. Please grant it in Settings > Permissions.');
+        final uiText = await _service.extractUiText();
+        if (uiText != null && uiText.length > 20) {
+          text = uiText;
+        } else {
+          final hasPerm = await _captureService.hasMediaProjectionPermission();
+          if (!hasPerm) {
+            final granted = await _captureService.requestMediaProjectionPermission();
+            if (!granted) {
+              state = state.copyWith(isCapturing: false, lastCaptureError: 'Screen capture permission denied. Please grant it in Settings > Permissions.');
+              return;
+            }
+          }
+          final captureResult = await _captureService.captureCurrentScreen();
+          if (!captureResult.isSuccess) {
+            state = state.copyWith(isCapturing: false, lastCaptureError: captureResult.error);
             return;
           }
-        }
-        final captureResult = await _captureService.captureCurrentScreen();
-        if (!captureResult.isSuccess) {
-          state = state.copyWith(isCapturing: false, lastCaptureError: captureResult.error);
-          return;
-        }
-        final ocrResult = await _ocrService.extractText(captureResult.imagePath!);
-        text = ocrResult.text;
-      }
-    }
-
-    // Prepend live buffer if enabled
-    if (_settings.enableBuffer) {
-      final buffer = await _service.getBuffer();
-      if (buffer != null && buffer.isNotEmpty) {
-        text = '$buffer\n\n$text';
-      }
-    }
-
-    // Use on-device transcription if Whisper is enabled and text is empty
-    if (text.trim().isEmpty && _settings.enableWhisper) {
-      final hasPerm = await _audioService.checkPermission();
-      if (hasPerm) {
-        final transcript = await _audioService.startListening();
-        if (transcript != null && transcript.isNotEmpty) {
-          text = transcript;
+          final ocrResult = await _ocrService.extractText(captureResult.imagePath!);
+          text = ocrResult.text;
         }
       }
-    }
 
-    final useCloud = _settings.enableCloudLLM && _cloudAnalysis.isConfigured;
-    final useLocal = _settings.enableLocalLLM && _localLLM.isReady;
+      if (_settings.enableBuffer) {
+        final buffer = await _service.getBuffer();
+        if (buffer != null && buffer.isNotEmpty) {
+          text = '$buffer\n\n$text';
+        }
+      }
 
-    AnalysisResult analysis;
-    if (useCloud) {
-      analysis = await _cloudAnalysis.analyze(text, mode: state.analysisMode, targetLanguage: state.targetLanguage);
-    } else if (useLocal) {
-      final llmResult = await _localLLM.analyze(text, mode: state.analysisMode, targetLanguage: state.targetLanguage);
-      analysis = llmResult != null
-          ? AnalysisResult(
-              summary: llmResult,
-              keywords: _analysisService.analyze(text).keywords,
-              wordCount: text.split(RegExp(r'\s+')).length,
-              sentenceCount: text.split(RegExp(r'[.!?\n]+')).where((s) => s.trim().isNotEmpty).length,
-            )
-          : _analysisService.analyze(text);
-    } else {
-      analysis = _analysisService.analyze(text);
-    }
+      if (text.trim().isEmpty && _settings.enableWhisper) {
+        final hasPerm = await _audioService.checkPermission();
+        if (hasPerm) {
+          final transcript = await _audioService.startListening();
+          if (transcript != null && transcript.isNotEmpty) {
+            text = transcript;
+          }
+        }
+      }
 
-    state = state.copyWith(
-      isCapturing: false,
-      lastCaptureText: text,
-      summary: analysis.summary,
-      keywords: analysis.keywords,
-    );
+      final useCloud = _settings.enableCloudLLM && _cloudAnalysis.isConfigured;
+      final useLocal = _settings.enableLocalLLM && _localLLM.isReady;
 
-    if (text.isNotEmpty) {
-      final modeLabel = switch (state.analysisMode) {
-        'explain' => 'Explanation',
-        'translate' => 'Translation (${state.targetLanguage ?? "English"})',
-        _ => 'Summary',
-      };
-      final displayText = '[$modeLabel]\n${analysis.keywords.take(5).join(", ")}\n\n${analysis.summary}';
-      _service.showResult(displayText);
+      AnalysisResult analysis;
+      if (useCloud) {
+        analysis = await _cloudAnalysis.analyze(text, mode: state.analysisMode, targetLanguage: state.targetLanguage);
+      } else if (useLocal) {
+        final llmResult = await _localLLM.analyze(text, mode: state.analysisMode, targetLanguage: state.targetLanguage);
+        analysis = llmResult != null
+            ? AnalysisResult(
+                summary: llmResult,
+                keywords: _analysisService.analyze(text).keywords,
+                wordCount: text.split(RegExp(r'\s+')).length,
+                sentenceCount: text.split(RegExp(r'[.!?\n]+')).where((s) => s.trim().isNotEmpty).length,
+              )
+            : _analysisService.analyze(text);
+      } else {
+        analysis = _analysisService.analyze(text);
+      }
+
+      state = state.copyWith(
+        isCapturing: false,
+        lastCaptureText: text,
+        summary: analysis.summary,
+        keywords: analysis.keywords,
+      );
+
+      if (text.isNotEmpty) {
+        final modeLabel = switch (state.analysisMode) {
+          'explain' => 'Explanation',
+          'translate' => 'Translation (${state.targetLanguage ?? "English"})',
+          _ => 'Summary',
+        };
+        final displayText = '[$modeLabel]\n${analysis.keywords.take(5).join(", ")}\n\n${analysis.summary}';
+        _service.showResult(displayText);
+      }
+    } catch (e, stack) {
+      AppLogger.error('captureAndAnalyze failed', error: e, stackTrace: stack);
+      state = state.copyWith(
+        isCapturing: false,
+        lastCaptureError: 'Analysis failed: ${e.toString()}',
+      );
     }
   }
 
@@ -243,13 +250,17 @@ class OverlayNotifier extends StateNotifier<OverlayState> {
     final text = state.lastCaptureText;
     if (text == null || text.isEmpty) return;
 
-    await _repository.saveMemoryEntry(
-      title: 'Captured ${DateTime.now().toString().substring(0, 19)}',
-      content: text,
-      ocrText: text,
-      tags: tags ?? ['capture', ...state.keywords.take(3)],
-    );
-    state = state.copyWith(lastCaptureText: null, summary: null, keywords: []);
+    try {
+      await _repository.saveMemoryEntry(
+        title: 'Captured ${DateTime.now().toString().substring(0, 19)}',
+        content: text,
+        ocrText: text,
+        tags: tags ?? ['capture', ...state.keywords.take(3)],
+      );
+      state = state.copyWith(lastCaptureText: null, summary: null, keywords: []);
+    } catch (e, stack) {
+      AppLogger.error('saveLastCapture failed', error: e, stackTrace: stack);
+    }
   }
 
   Future<void> checkAccessibility() async {

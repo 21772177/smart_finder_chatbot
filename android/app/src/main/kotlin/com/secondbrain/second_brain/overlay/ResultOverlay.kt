@@ -1,18 +1,28 @@
 package com.secondbrain.second_brain.overlay
 
 import android.content.Context
+import android.content.res.Configuration
+import android.graphics.Color
 import android.graphics.PixelFormat
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.WindowManager
+import android.widget.Button
+import android.widget.LinearLayout
 import android.widget.TextView
 import com.secondbrain.second_brain.R
 
 class ResultOverlay(private val context: Context) {
     private var overlayView: View? = null
     private var windowManager: WindowManager? = null
+
+    private fun isDarkMode(): Boolean {
+        val nightModeFlags = context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+        return nightModeFlags == Configuration.UI_MODE_NIGHT_YES
+    }
 
     fun show(text: String, onSave: () -> Unit, onDismiss: () -> Unit) {
         hide()
@@ -40,21 +50,88 @@ class ResultOverlay(private val context: Context) {
             dimAmount = 0.3f
         }
 
-        val inflater = LayoutInflater.from(context)
-        // We'll use a simple TextView-based layout programmatically for now
-        overlayView = inflater.inflate(R.layout.overlay_result, null).apply {
-            findViewById<TextView>(R.id.resultText).text = text
-            findViewById<View>(R.id.saveButton).setOnClickListener {
-                onSave()
-                hide()
+        val dark = isDarkMode()
+        val bgColor = if (dark) Color.parseColor("#1E1E1E") else Color.WHITE
+        val textColor = if (dark) Color.parseColor("#E0E0E0") else Color.parseColor("#212121")
+        val subtitleColor = if (dark) Color.parseColor("#AAAAAA") else Color.parseColor("#757575")
+        val btnBgColor = if (dark) Color.parseColor("#2C2C2C") else Color.parseColor("#F0F0F0")
+        val btnTextColor = if (dark) Color.parseColor("#90CAF9") else Color.parseColor("#1565C0")
+        val borderColor = if (dark) Color.parseColor("#333333") else Color.parseColor("#E0E0E0")
+        val radius = 24f
+
+        val container = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(16), dp(20), dp(16))
+            background = GradientDrawable().apply {
+                setColor(bgColor)
+                setStroke(dp(1), borderColor)
+                this.cornerRadius = radius
             }
-            findViewById<View>(R.id.dismissButton).setOnClickListener {
+        }
+
+        val titleView = TextView(context).apply {
+            this.text = "Screen Content"
+            setTextColor(subtitleColor)
+            textSize = 14f
+            setPadding(0, 0, 0, dp(8))
+        }
+        container.addView(titleView)
+
+        val scrollView = android.widget.ScrollView(context)
+        val resultView = TextView(context).apply {
+            this.text = text
+            setTextColor(textColor)
+            textSize = 15f
+            maxLines = 15
+            setPadding(0, 0, 0, dp(12))
+        }
+        scrollView.addView(resultView)
+        container.addView(scrollView, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ))
+
+        val buttonRow = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.END
+        }
+
+        val dismissBtn = Button(context).apply {
+            this.text = "Dismiss"
+            setTextColor(btnTextColor)
+            setBackgroundColor(Color.TRANSPARENT)
+            isAllCaps = false
+            textSize = 14f
+            setPadding(dp(12), dp(8), dp(12), dp(8))
+            setOnClickListener {
                 onDismiss()
                 hide()
             }
         }
 
+        val saveBtn = Button(context).apply {
+            this.text = "Save to Memory"
+            setTextColor(btnTextColor)
+            setBackgroundColor(Color.TRANSPARENT)
+            isAllCaps = false
+            textSize = 14f
+            setPadding(dp(12), dp(8), dp(12), dp(8))
+            setOnClickListener {
+                onSave()
+                hide()
+            }
+        }
+
+        buttonRow.addView(dismissBtn)
+        buttonRow.addView(saveBtn)
+        container.addView(buttonRow)
+
+        overlayView = container
         windowManager?.addView(overlayView, params)
+    }
+
+    private fun dp(value: Int): Int {
+        return (value * context.resources.displayMetrics.density + 0.5f).toInt()
     }
 
     fun hide() {

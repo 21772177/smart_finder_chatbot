@@ -11,6 +11,7 @@ import '../security/secure_key_service.dart';
 import 'settings_service.dart';
 import 'blocked_apps_screen.dart';
 import '../analyze/cloud_analysis_service.dart';
+import '../analyze/local_llm_service.dart';
 import '../permissions/permission_dashboard.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -38,6 +39,22 @@ class SettingsScreen extends ConsumerWidget {
                 context,
                 MaterialPageRoute(builder: (_) => const PermissionDashboard()),
               ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text('Appearance', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 8),
+          Card(
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.dark_mode),
+                  title: const Text('Theme'),
+                  subtitle: Text(settings.themeMode.name.toUpperCase()),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _showThemeDialog(context, ref, settings),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 24),
@@ -132,16 +149,20 @@ class SettingsScreen extends ConsumerWidget {
                 const Divider(height: 1),
                 SwitchListTile(
                   title: const Text('Local LLM'),
-                  subtitle: const Text('On-device inference — coming soon'),
-                  value: false,
-                  onChanged: null,
+                  subtitle: const Text('On-device inference via llama.cpp'),
+                  value: settings.enableLocalLLM,
+                  onChanged: (v) => ref.read(settingsServiceProvider).enableLocalLLM = v,
                 ),
-                const ListTile(
-                  leading: Icon(Icons.info_outline),
-                  title: Text('Local LLM requires native llama.cpp build'),
-                  subtitle: Text('Use Cloud LLM (Gemini/OpenAI/Anthropic) in the meantime.'),
-                  dense: true,
-                ),
+                if (settings.enableLocalLLM) ...[
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: const Icon(Icons.smart_toy),
+                    title: const Text('Manage Models'),
+                    subtitle: const Text('Download and load GGUF models'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => _showLocalLlmDialog(context, ref),
+                  ),
+                ],
               ],
             ),
           ),
@@ -356,6 +377,104 @@ class SettingsScreen extends ConsumerWidget {
                 children: LLMProvider.values.map((p) => RadioListTile<LLMProvider>(
                   title: Text(p.name.toUpperCase()),
                   value: p,
+                )).toList(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showLocalLlmDialog(BuildContext context, WidgetRef ref) async {
+    final service = ref.read(localLlmServiceProvider);
+    final messenger = ScaffoldMessenger.of(context);
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          title: const Text('Local LLM Models'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: LocalLLMService.recommendedModels.length,
+              itemBuilder: (ctx, i) {
+                final model = LocalLLMService.recommendedModels[i];
+                final isActive = service.modelName == model.url.split('/').last;
+                return Card(
+                  child: ListTile(
+                    title: Text(model.name),
+                    subtitle: Text('${model.description} (${model.sizeMb} MB)'),
+                    trailing: isActive
+                        ? const Icon(Icons.check_circle, color: Colors.green)
+                        : FilledButton.tonal(
+                            onPressed: () async {
+                              final filename = model.url.split('/').last;
+                              messenger.showSnackBar(
+                                SnackBar(content: Text('Downloading ${model.name}...')),
+                              );
+                              final ok = await service.downloadModel(model.url, filename);
+                              if (ok) {
+                                final loaded = await service.loadModel(filename);
+                                if (loaded) {
+                                  messenger.showSnackBar(
+                                    SnackBar(content: Text('${model.name} loaded')),
+                                  );
+                                }
+                              }
+                              if (ctx.mounted) setState(() {});
+                            },
+                            child: const Text('Download'),
+                          ),
+                  ),
+                );
+              },
+            ),
+          ),
+          actions: [
+            if (service.isReady)
+              TextButton(
+                onPressed: () async {
+                  await service.unloadModel();
+                  messenger.showSnackBar(const SnackBar(content: Text('Model unloaded')));
+                  if (ctx.mounted) setState(() {});
+                },
+                child: const Text('Unload Model'),
+              ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showThemeDialog(BuildContext context, WidgetRef ref, SettingsService settings) async {
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Theme'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            RadioGroup<ThemeMode>(
+              groupValue: settings.themeMode,
+              onChanged: (v) {
+                if (v != null) {
+                  settings.themeMode = v;
+                  ref.read(themeModeProvider.notifier).state = v;
+                  Navigator.pop(ctx);
+                }
+              },
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: ThemeMode.values.map((m) => RadioListTile<ThemeMode>(
+                  title: Text(m.name[0].toUpperCase() + m.name.substring(1)),
+                  value: m,
                 )).toList(),
               ),
             ),

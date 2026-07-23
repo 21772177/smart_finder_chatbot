@@ -4,13 +4,13 @@ import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.content.SharedPreferences
 import android.graphics.PixelFormat
 import android.os.Build
-import android.preference.PreferenceManager
+import android.util.DisplayMetrics
 import android.view.Gravity
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
@@ -40,9 +40,9 @@ class OverlayAccessibilityService : AccessibilityService() {
         private val settingsListener = object : SharedPreferences.OnSharedPreferenceChangeListener {
             override fun onSharedPreferenceChanged(prefs: SharedPreferences?, key: String?) {
                 when (key) {
-                    "scan_on_like" -> scanOnLike = prefs?.getBoolean("scan_on_like", true) ?: true
-                    "scan_on_save" -> scanOnSave = prefs?.getBoolean("scan_on_save", true) ?: true
-                    "enable_buffer" -> enableBuffer = prefs?.getBoolean("enable_buffer", true) ?: true
+                    "flutter.scan_on_like" -> scanOnLike = prefs?.getBoolean("flutter.scan_on_like", true) ?: true
+                    "flutter.scan_on_save" -> scanOnSave = prefs?.getBoolean("flutter.scan_on_save", true) ?: true
+                    "flutter.enable_buffer" -> enableBuffer = prefs?.getBoolean("flutter.enable_buffer", true) ?: true
                 }
             }
         }
@@ -75,14 +75,15 @@ class OverlayAccessibilityService : AccessibilityService() {
         }
 
         private fun loadSettings(context: Context) {
-            val prefs = PreferenceManager.getDefaultSharedPreferences(context)
-            scanOnLike = prefs.getBoolean("scan_on_like", true)
-            scanOnSave = prefs.getBoolean("scan_on_save", true)
-            enableBuffer = prefs.getBoolean("enable_buffer", true)
+            val prefs = context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+            scanOnLike = prefs.getBoolean("flutter.scan_on_like", true)
+            scanOnSave = prefs.getBoolean("flutter.scan_on_save", true)
+            enableBuffer = prefs.getBoolean("flutter.enable_buffer", true)
         }
     }
 
     private var overlayView: View? = null
+    private var overlayParams: WindowManager.LayoutParams? = null
     private var windowManager: WindowManager? = null
     private var instanceLastUiText: String? = null
     private var textBuffer = mutableListOf<String>()
@@ -103,7 +104,7 @@ class OverlayAccessibilityService : AccessibilityService() {
         loadSettings(this)
 
         // Listen for live setting changes from the Flutter side
-        PreferenceManager.getDefaultSharedPreferences(this)
+        getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
             .registerOnSharedPreferenceChangeListener(settingsListener)
     }
 
@@ -216,6 +217,10 @@ class OverlayAccessibilityService : AccessibilityService() {
             WindowManager.LayoutParams.TYPE_PHONE
         }
 
+        val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+        val savedX = prefs.getInt("flutter.overlay_x", 0)
+        val savedY = prefs.getInt("flutter.overlay_y", 100)
+
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -225,14 +230,58 @@ class OverlayAccessibilityService : AccessibilityService() {
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = 0
-            y = 100
+            x = savedX
+            y = savedY
         }
+        overlayParams = params
+
+        val density = resources.displayMetrics.density
+        val clickThreshold = (10 * density + 0.5f).toInt()
 
         val inflater = LayoutInflater.from(this)
         overlayView = inflater.inflate(R.layout.overlay_bubble, null).apply {
-            setOnClickListener {
-                notifyFlutter("onOverlayTap", null)
+            var initialX = 0
+            var initialY = 0
+            var initialTouchX = 0f
+            var initialTouchY = 0f
+            var moved = false
+
+            setOnTouchListener { _, event ->
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        initialX = params.x
+                        initialY = params.y
+                        initialTouchX = event.rawX
+                        initialTouchY = event.rawY
+                        moved = false
+                        true
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        val dx = (event.rawX - initialTouchX).toInt()
+                        val dy = (event.rawY - initialTouchY).toInt()
+                        if (dx * dx + dy * dy > clickThreshold * clickThreshold) {
+                            moved = true
+                        }
+                        params.x = initialX + dx
+                        params.y = initialY + dy
+                        try {
+                            windowManager?.updateViewLayout(this@apply, params)
+                        } catch (_: Exception) {}
+                        true
+                    }
+                    MotionEvent.ACTION_UP -> {
+                        if (!moved) {
+                            notifyFlutter("onOverlayTap", null)
+                        } else {
+                            prefs.edit()
+                                .putInt("flutter.overlay_x", params.x)
+                                .putInt("flutter.overlay_y", params.y)
+                                .apply()
+                        }
+                        true
+                    }
+                    else -> false
+                }
             }
         }
 

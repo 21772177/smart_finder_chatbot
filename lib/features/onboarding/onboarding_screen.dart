@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../permissions/permission_dashboard.dart';
+import '../permissions/permission_service.dart';
 import '../settings/settings_service.dart';
 
 final onboardingCompleteProvider = FutureProvider<bool>((ref) async {
@@ -18,12 +20,32 @@ class OnboardingScreen extends ConsumerStatefulWidget {
 class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   final _controller = PageController();
   int _page = 0;
+  Map<String, bool> _permissions = {};
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkPermissions();
+    _timer = Timer.periodic(const Duration(seconds: 2), (_) => _checkPermissions());
+  }
 
   @override
   void dispose() {
+    _timer?.cancel();
     _controller.dispose();
     super.dispose();
   }
+
+  Future<void> _checkPermissions() async {
+    final service = PermissionService();
+    final perms = await service.checkAll();
+    if (mounted) setState(() => _permissions = perms);
+  }
+
+  bool get _allRequiredGranted =>
+      (_permissions['accessibility'] ?? false) &&
+      (_permissions['overlay'] ?? false);
 
   Future<void> _complete() async {
     final prefs = ref.read(sharedPrefsProvider);
@@ -67,7 +89,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               padding: const EdgeInsets.all(24),
               child: Column(
                 children: [
-                  // Page indicators
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: List.generate(3, (i) => Container(
@@ -87,7 +108,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     width: double.infinity,
                     height: 48,
                     child: FilledButton(
-                      onPressed: _next,
+                      onPressed: _page == 1 && !_allRequiredGranted ? null : _next,
                       child: Text(_page < 2 ? 'Next' : 'Get Started'),
                     ),
                   ),
@@ -162,6 +183,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   }
 
   Widget _buildAccessibilityPage(ThemeData theme) {
+    final accessibilityGranted = _permissions['accessibility'] ?? false;
+    final overlayGranted = _permissions['overlay'] ?? false;
+
     return Padding(
       padding: const EdgeInsets.all(32),
       child: Column(
@@ -192,32 +216,44 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           Card(
             child: ListTile(
               leading: Icon(
-                Icons.accessibility_new,
-                color: theme.colorScheme.primary,
+                accessibilityGranted ? Icons.check_circle : Icons.accessibility_new,
+                color: accessibilityGranted ? Colors.green : theme.colorScheme.primary,
               ),
               title: const Text('Accessibility Service'),
-              subtitle: const Text('Required for screen capture'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () async {
-                final service = ref.read(permissionServiceProvider);
-                await service.openAccessibilitySettings();
-              },
+              subtitle: Text(
+                accessibilityGranted ? 'Granted' : 'Required for screen capture',
+              ),
+              trailing: accessibilityGranted
+                  ? null
+                  : const Icon(Icons.chevron_right),
+              onTap: accessibilityGranted
+                  ? null
+                  : () async {
+                      final service = ref.read(permissionServiceProvider);
+                      await service.openAccessibilitySettings();
+                    },
             ),
           ),
           const SizedBox(height: 12),
           Card(
             child: ListTile(
               leading: Icon(
-                Icons.picture_in_picture,
-                color: theme.colorScheme.primary,
+                overlayGranted ? Icons.check_circle : Icons.picture_in_picture,
+                color: overlayGranted ? Colors.green : theme.colorScheme.primary,
               ),
               title: const Text('Display Overlay'),
-              subtitle: const Text('Required for floating bubble'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () async {
-                final service = ref.read(permissionServiceProvider);
-                await service.openOverlaySettings();
-              },
+              subtitle: Text(
+                overlayGranted ? 'Granted' : 'Required for floating bubble',
+              ),
+              trailing: overlayGranted
+                  ? null
+                  : const Icon(Icons.chevron_right),
+              onTap: overlayGranted
+                  ? null
+                  : () async {
+                      final service = ref.read(permissionServiceProvider);
+                      await service.openOverlaySettings();
+                    },
             ),
           ),
         ],

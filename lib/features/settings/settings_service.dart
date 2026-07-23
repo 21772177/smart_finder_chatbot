@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants.dart';
@@ -66,6 +67,12 @@ class SettingsService {
 
   bool get cloudBackupEnabled => _prefs.getBool('cloud_backup_enabled') ?? false;
   set cloudBackupEnabled(bool value) => _prefs.setBool('cloud_backup_enabled', value);
+
+  ThemeMode get themeMode {
+    final value = _prefs.getString('theme_mode');
+    return ThemeMode.values.asNameMap()[value] ?? ThemeMode.system;
+  }
+  set themeMode(ThemeMode value) => _prefs.setString('theme_mode', value.name);
 }
 
 final sharedPrefsProvider = Provider<SharedPreferences>((ref) {
@@ -75,4 +82,9 @@ final sharedPrefsProvider = Provider<SharedPreferences>((ref) {
 final settingsServiceProvider = Provider<SettingsService>((ref) {
   final prefs = ref.watch(sharedPrefsProvider);
   return SettingsService(prefs);
+});
+
+final themeModeProvider = StateProvider<ThemeMode>((ref) {
+  final settings = ref.watch(settingsServiceProvider);
+  return settings.themeMode;
 });

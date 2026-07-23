@@ -6,15 +6,49 @@ import '../chat/chat_notifier.dart';
 import '../settings/settings_service.dart';
 import 'overlay_notifier.dart';
 
-class OverlayScreen extends ConsumerWidget {
+class OverlayScreen extends ConsumerStatefulWidget {
   const OverlayScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<OverlayScreen> createState() => _OverlayScreenState();
+}
+
+class _OverlayScreenState extends ConsumerState<OverlayScreen>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
+    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.08).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(overlayStateProvider);
     final notifier = ref.read(overlayStateProvider.notifier);
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+
+    if (state.isCapturing && !_pulseController.isAnimating) {
+      _pulseController.repeat(reverse: true);
+    } else if (!state.isCapturing && _pulseController.isAnimating) {
+      _pulseController.stop();
+      _pulseController.value = 0;
+    }
 
     return Scaffold(
       appBar: AppBar(title: const Text('Second Brain'), centerTitle: true),
@@ -134,12 +168,15 @@ class OverlayScreen extends ConsumerWidget {
                     ),
                   ],
                   const SizedBox(height: 12),
-                  FilledButton.icon(
-                    onPressed: state.isCapturing ? null : () => notifier.captureAndAnalyze(),
-                    icon: state.isCapturing
-                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : const Icon(Icons.camera_alt),
-                    label: Text(state.isCapturing ? 'Analyzing...' : 'Capture & Analyze'),
+                  ScaleTransition(
+                    scale: _pulseAnimation,
+                    child: FilledButton.icon(
+                      onPressed: state.isCapturing ? null : () => notifier.captureAndAnalyze(),
+                      icon: state.isCapturing
+                          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Icon(Icons.camera_alt),
+                      label: Text(state.isCapturing ? 'Analyzing...' : 'Capture & Analyze'),
+                    ),
                   ),
                 ],
               ),
@@ -171,18 +208,42 @@ class OverlayScreen extends ConsumerWidget {
 
           // Loading indicator during capture
           if (state.isCapturing)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 16),
-              child: Column(
-                children: [
-                  LinearProgressIndicator(),
-                  SizedBox(height: 8),
-                  Text(
-                    'Capturing and analyzing screen...',
-                    style: TextStyle(fontSize: 13, fontStyle: FontStyle.italic),
-                    textAlign: TextAlign.center,
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Card(
+                color: colorScheme.primaryContainer,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      const LinearProgressIndicator(),
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: colorScheme.onPrimaryContainer,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Capturing and analyzing screen...',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontStyle: FontStyle.italic,
+                              color: colorScheme.onPrimaryContainer,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
 

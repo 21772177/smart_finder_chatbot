@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'features/overlay/overlay_screen.dart';
 import 'features/chat/chat_screen.dart';
 import 'features/settings/settings_screen.dart';
+import 'features/settings/settings_service.dart';
 import 'features/onboarding/onboarding_screen.dart';
 import 'core/theme.dart';
 
@@ -14,10 +15,13 @@ class SecondBrainApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final onboardingAsync = ref.watch(onboardingCompleteProvider);
+    final themeMode = ref.watch(themeModeProvider);
 
     return MaterialApp(
       title: 'Second Brain',
       theme: secondBrainTheme,
+      darkTheme: secondBrainDarkTheme,
+      themeMode: themeMode,
       debugShowCheckedModeBanner: false,
       home: onboardingAsync.when(
         loading: () => const Scaffold(
