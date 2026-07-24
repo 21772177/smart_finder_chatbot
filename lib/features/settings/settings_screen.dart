@@ -138,6 +138,31 @@ class SettingsScreen extends ConsumerWidget {
                     settings.llmProvider == LLMProvider.anthropic,
                     () => _showApiKeyDialog(context, ref, settings, 'anthropic'),
                   ),
+                  const Divider(height: 1),
+                  _buildModelNameTile(
+                    context,
+                    ref,
+                    settings,
+                    'Gemini Model',
+                    settings.geminiModel,
+                    (v) => settings.geminiModel = v,
+                  ),
+                  _buildModelNameTile(
+                    context,
+                    ref,
+                    settings,
+                    'OpenAI Model',
+                    settings.openaiModel,
+                    (v) => settings.openaiModel = v,
+                  ),
+                  _buildModelNameTile(
+                    context,
+                    ref,
+                    settings,
+                    'Anthropic Model',
+                    settings.anthropicModel,
+                    (v) => settings.anthropicModel = v,
+                  ),
                 ],
                 const Divider(height: 1),
                 SwitchListTile(
@@ -184,6 +209,14 @@ class SettingsScreen extends ConsumerWidget {
                     context,
                     MaterialPageRoute(builder: (_) => const BlockedAppsScreen()),
                   ),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.timelapse),
+                  title: const Text('Data Retention'),
+                  subtitle: Text('Keep cache files for ${settings.dataRetentionDays} days'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _showRetentionDialog(context, ref, settings),
                 ),
                 const Divider(height: 1),
                 ListTile(
@@ -356,6 +389,85 @@ class SettingsScreen extends ConsumerWidget {
       trailing: const Icon(Icons.chevron_right),
       onTap: onTap,
     );
+  }
+
+  Widget _buildModelNameTile(BuildContext context, WidgetRef ref, SettingsService settings,
+      String title, String currentModel, Function(String) setter) {
+    return ListTile(
+      leading: const Icon(Icons.tune),
+      title: Text(title),
+      subtitle: Text(currentModel),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () async {
+        final controller = TextEditingController(text: currentModel);
+        final result = await showDialog<String>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Text('Set $title'),
+            content: TextField(
+              controller: controller,
+              decoration: const InputDecoration(border: OutlineInputBorder()),
+              autofocus: true,
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+              FilledButton(
+                onPressed: () {
+                  final v = controller.text.trim();
+                  if (v.isNotEmpty) Navigator.pop(ctx, v);
+                },
+                child: const Text('Save'),
+              ),
+            ],
+          ),
+        );
+        if (result != null) {
+          setter(result);
+        }
+      },
+    );
+  }
+
+  Future<void> _showRetentionDialog(BuildContext context, WidgetRef ref, SettingsService settings) async {
+    int days = settings.dataRetentionDays;
+    final result = await showDialog<int>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Data Retention'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Cache files older than this will be cleaned up daily.'),
+              const SizedBox(height: 16),
+              Text('$days days', style: Theme.of(ctx).textTheme.headlineSmall),
+              Slider(
+                value: days.toDouble(),
+                min: 7,
+                max: 365,
+                divisions: 51,
+                label: '$days days',
+                onChanged: (v) => setDialogState(() => days = v.round()),
+              ),
+              const Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [Text('7 days'), Text('365 days')],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, days),
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (result != null) {
+      settings.dataRetentionDays = result;
+    }
   }
 
   Future<void> _showProviderDialog(BuildContext context, WidgetRef ref, SettingsService settings) async {

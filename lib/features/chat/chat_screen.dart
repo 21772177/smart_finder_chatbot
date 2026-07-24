@@ -67,6 +67,86 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
+  Future<void> _editMemory(MemoryEntry entry) async {
+    final titleController = TextEditingController(text: entry.title);
+    final contentController = TextEditingController(text: entry.content);
+    final tagsController = TextEditingController(text: entry.tags.join(', '));
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit Memory'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: titleController,
+                decoration: const InputDecoration(labelText: 'Title', border: OutlineInputBorder()),
+                textCapitalization: TextCapitalization.sentences,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: contentController,
+                decoration: const InputDecoration(labelText: 'Content', border: OutlineInputBorder()),
+                maxLines: 6,
+                textCapitalization: TextCapitalization.sentences,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: tagsController,
+                decoration: const InputDecoration(
+                  labelText: 'Tags (comma-separated)',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    if (result != true) return;
+
+    final newTitle = titleController.text.trim();
+    final newContent = contentController.text.trim();
+    final newTags = tagsController.text.split(',').map((t) => t.trim()).where((t) => t.isNotEmpty).toList();
+
+    if (newTitle.isEmpty || newContent.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Title and content cannot be empty')));
+      }
+      return;
+    }
+
+    await ref.read(memoryRepositoryProvider).updateMemoryEntry(
+      id: entry.id,
+      title: newTitle,
+      content: newContent,
+      sourceApp: entry.sourceApp,
+      ocrText: entry.ocrText,
+      tags: newTags,
+    );
+
+    ref.read(chatStateProvider.notifier).updateMemory(
+      entry.id,
+      title: newTitle,
+      content: newContent,
+      tags: newTags,
+    );
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Memory updated')));
+    }
+  }
+
   Future<void> _showMemoryDetail(MemoryEntry entry) async {
     await showModalBottomSheet(
       context: context,
@@ -80,7 +160,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           controller: scrollController,
           padding: const EdgeInsets.all(24),
           children: [
-            // Drag handle
             Center(
               child: Container(
                 width: 32,
@@ -136,13 +215,30 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               style: Theme.of(ctx).textTheme.bodyMedium,
             ),
             const SizedBox(height: 24),
-            OutlinedButton.icon(
-              onPressed: () {
-                Navigator.pop(ctx);
-                _deleteMemory(entry);
-              },
-              icon: const Icon(Icons.delete, color: Colors.red, size: 18),
-              label: const Text('Delete Memory', style: TextStyle(color: Colors.red)),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _editMemory(entry);
+                    },
+                    icon: const Icon(Icons.edit, size: 18),
+                    label: const Text('Edit'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _deleteMemory(entry);
+                    },
+                    icon: const Icon(Icons.delete, color: Colors.red, size: 18),
+                    label: const Text('Delete', style: TextStyle(color: Colors.red)),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -177,7 +273,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     itemCount: state.messages.length + (state.results.isNotEmpty ? 1 : 0),
                     itemBuilder: (context, index) {
                       if (index == state.messages.length && state.results.isNotEmpty) {
-                        return _buildResultsList(theme, state.results);
+                        return _buildResultsList(theme, state);
                       }
                       final msg = state.messages[index];
                       return Align(
@@ -276,7 +372,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
-  Widget _buildResultsList(ThemeData theme, List<MemorySearchResult> results) {
+  Widget _buildResultsList(ThemeData theme, ChatState state) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Column(
@@ -292,7 +388,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               ),
             ),
           ),
-          ...results.map((r) => Card(
+          ...state.results.map((r) => Card(
             margin: const EdgeInsets.only(bottom: 8),
             child: InkWell(
               onTap: () => _showMemoryDetail(r.memoryEntry),
@@ -305,11 +401,32 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            r.memoryEntry.title,
-                            style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  r.memoryEntry.title,
+                                  style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.primaryContainer,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  '${(r.score * 100).round()}%',
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    color: theme.colorScheme.onPrimaryContainer,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 4),
                           Text(
@@ -341,6 +458,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               ),
             ),
           )),
+          if (state.hasMore)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Center(
+                child: state.isLoadingMore
+                    ? const SizedBox(
+                        height: 24,
+                        width: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : TextButton.icon(
+                        onPressed: () => ref.read(chatStateProvider.notifier).loadMore(),
+                        icon: const Icon(Icons.expand_more),
+                        label: const Text('Load More'),
+                      ),
+              ),
+            ),
         ],
       ),
     );
