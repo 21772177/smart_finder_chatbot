@@ -1,7 +1,6 @@
 plugins {
     id("com.android.application")
     id("kotlin-android")
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
 
@@ -15,8 +14,10 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
+    kotlin {
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        }
     }
 
     defaultConfig {
@@ -26,31 +27,21 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
-        }
-    }
-
-    signingConfigs {
-        create("release") {
-            val keystorePath = System.getenv("KEYSTORE_PATH") ?: "keystore/release.keystore"
-            val keystorePassword = System.getenv("KEYSTORE_PASSWORD") ?: ""
-            val keyAlias = System.getenv("KEY_ALIAS") ?: ""
-            val keyPassword = System.getenv("KEY_PASSWORD") ?: ""
-
-            storeFile = file(keystorePath)
-            storePassword = keystorePassword
-            this.keyAlias = keyAlias
-            keyPassword = keyPassword
+            abiFilters += listOf("arm64-v8a")
         }
     }
 
     buildTypes {
         release {
             val hasSigning = System.getenv("KEYSTORE_PATH") != null
-            signingConfig = if (hasSigning) {
-                signingConfigs.getByName("release")
+            if (hasSigning) {
+                signingConfig = signingConfigs.create("release") {
+                    storeFile = file(System.getenv("KEYSTORE_PATH")!!)
+                    storePassword = System.getenv("KEYSTORE_PASSWORD") ?: ""
+                    keyAlias = System.getenv("KEY_ALIAS") ?: ""
+                }
             } else {
-                signingConfigs.getByName("debug")
+                signingConfig = signingConfigs.getByName("debug")
             }
             isMinifyEnabled = true
             isShrinkResources = true
