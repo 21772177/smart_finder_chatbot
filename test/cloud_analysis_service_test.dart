@@ -71,5 +71,29 @@ void main() {
       expect(result.keywords, isNotEmpty);
       expect(result.keywords.length, lessThanOrEqualTo(10));
     });
+
+    test('configure with custom Gemini model', () {
+      service.configure(LLMProvider.gemini, 'key', geminiModel: 'gemini-2.5-pro');
+      expect(service.isConfigured, isTrue);
+    });
+
+    test('configure with custom OpenAI model', () {
+      service.configure(LLMProvider.openai, 'key', openaiModel: 'gpt-4o');
+      expect(service.isConfigured, isTrue);
+    });
+
+    test('configure with custom Anthropic model', () {
+      service.configure(LLMProvider.anthropic, 'key', anthropicModel: 'claude-3-sonnet');
+      expect(service.isConfigured, isTrue);
+    });
+
+    test('configure clears previous provider', () {
+      service.configure(LLMProvider.gemini, 'gemini-key');
+      expect(service.isConfigured, isTrue);
+
+      service.configure(LLMProvider.openai, 'openai-key');
+      // OpenAI doesn't set _geminiModel, so isConfigured depends on _openaiApiKey
+      expect(service.isConfigured, isTrue);
+    });
   });
 }

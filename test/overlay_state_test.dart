@@ -78,5 +78,81 @@ void main() {
 
       expect(copy.keywords, ['a', 'b', 'c']);
     });
+
+    test('copyWith clearError removes lastCaptureError', () {
+      const original = OverlayState(lastCaptureError: 'Something went wrong');
+
+      final cleared = original.copyWith(clearError: true);
+      expect(cleared.lastCaptureError, isNull);
+
+      // Without clearError, the old error persists
+      final notCleared = original.copyWith(clearError: false);
+      expect(notCleared.lastCaptureError, 'Something went wrong');
+    });
+
+    test('copyWith clearError does not affect other fields', () {
+      const original = OverlayState(
+        lastCaptureText: 'text',
+        lastCaptureError: 'error',
+        summary: 'summary',
+        keywords: ['kw'],
+      );
+
+      final cleared = original.copyWith(clearError: true);
+      expect(cleared.lastCaptureError, isNull);
+      expect(cleared.lastCaptureText, 'text');
+      expect(cleared.summary, 'summary');
+      expect(cleared.keywords, ['kw']);
+    });
+
+    test('copyWith clearCapture removes text, summary, keywords', () {
+      const original = OverlayState(
+        lastCaptureText: 'captured text',
+        lastCaptureError: 'error',
+        summary: 'a summary',
+        keywords: ['kw1', 'kw2'],
+      );
+
+      final cleared = original.copyWith(clearCapture: true);
+      expect(cleared.lastCaptureText, isNull);
+      expect(cleared.summary, isNull);
+      expect(cleared.keywords, isEmpty);
+      // clearCapture should NOT clear the error
+      expect(cleared.lastCaptureError, 'error');
+    });
+
+    test('copyWith clearCapture and clearError together', () {
+      const original = OverlayState(
+        lastCaptureText: 'text',
+        lastCaptureError: 'error',
+        summary: 'summary',
+        keywords: ['kw'],
+      );
+
+      final cleared = original.copyWith(clearCapture: true, clearError: true);
+      expect(cleared.lastCaptureText, isNull);
+      expect(cleared.lastCaptureError, isNull);
+      expect(cleared.summary, isNull);
+      expect(cleared.keywords, isEmpty);
+    });
+
+    test('copyWith clearCapture with explicit values overrides clear', () {
+      const original = OverlayState(
+        lastCaptureText: 'old',
+        summary: 'old summary',
+        keywords: ['old'],
+      );
+
+      final result = original.copyWith(
+        clearCapture: true,
+        lastCaptureText: 'new',
+        summary: 'new summary',
+        keywords: ['new'],
+      );
+      // clearCapture runs first, then explicit values override
+      expect(result.lastCaptureText, 'new');
+      expect(result.summary, 'new summary');
+      expect(result.keywords, ['new']);
+    });
   });
 }
