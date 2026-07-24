@@ -54,15 +54,17 @@ class OverlayState {
     String? targetLanguage,
     bool clearBlocked = false,
     bool clearAnalysisMode = false,
+    bool clearError = false,
+    bool clearCapture = false,
   }) {
     return OverlayState(
       status: status ?? this.status,
       accessibilityEnabled: accessibilityEnabled ?? this.accessibilityEnabled,
-      lastCaptureText: lastCaptureText ?? this.lastCaptureText,
-      lastCaptureError: lastCaptureError ?? this.lastCaptureError,
+      lastCaptureText: clearCapture ? null : (lastCaptureText ?? this.lastCaptureText),
+      lastCaptureError: clearError ? null : (lastCaptureError ?? this.lastCaptureError),
       isCapturing: isCapturing ?? this.isCapturing,
-      summary: summary ?? this.summary,
-      keywords: keywords ?? this.keywords,
+      summary: clearCapture ? null : (summary ?? this.summary),
+      keywords: clearCapture ? const [] : (keywords ?? this.keywords),
       currentAppPackage: currentAppPackage ?? this.currentAppPackage,
       blockedAppName: clearBlocked ? null : (blockedAppName ?? this.blockedAppName),
       analysisMode: clearAnalysisMode ? null : (analysisMode ?? this.analysisMode),
@@ -128,7 +130,7 @@ class OverlayNotifier extends StateNotifier<OverlayState> {
   }
 
   void _onDismissCapture() {
-    state = state.copyWith(lastCaptureText: null, lastCaptureError: null, summary: null, keywords: []);
+    state = state.copyWith(clearCapture: true, clearError: true);
   }
 
   Future<void> captureAndAnalyze({String? overrideText}) async {
@@ -143,7 +145,7 @@ class OverlayNotifier extends StateNotifier<OverlayState> {
       return;
     }
 
-    state = state.copyWith(isCapturing: true, lastCaptureError: null, lastCaptureText: null, summary: null, keywords: []);
+    state = state.copyWith(isCapturing: true, clearError: true, clearCapture: true);
 
     try {
       String text;
@@ -220,6 +222,7 @@ class OverlayNotifier extends StateNotifier<OverlayState> {
         final modeLabel = switch (state.analysisMode) {
           'explain' => 'Explanation',
           'translate' => 'Translation (${state.targetLanguage ?? "English"})',
+          'takeaways' => 'Key Takeaways',
           _ => 'Summary',
         };
         final displayText = '[$modeLabel]\n${analysis.keywords.take(5).join(", ")}\n\n${analysis.summary}';
@@ -243,21 +246,24 @@ class OverlayNotifier extends StateNotifier<OverlayState> {
   }
 
   void dismissLastCapture() {
-    state = state.copyWith(lastCaptureText: null, lastCaptureError: null, summary: null, keywords: []);
+    state = state.copyWith(clearCapture: true, clearError: true);
   }
 
-  Future<void> saveLastCapture({List<String>? tags}) async {
+  Future<void> saveLastCapture({String? title, List<String>? tags}) async {
     final text = state.lastCaptureText;
     if (text == null || text.isEmpty) return;
 
     try {
+      final entryTitle = title?.isNotEmpty == true
+          ? title!
+          : 'Captured ${DateTime.now().toString().substring(0, 19)}';
       await _repository.saveMemoryEntry(
-        title: 'Captured ${DateTime.now().toString().substring(0, 19)}',
+        title: entryTitle,
         content: text,
         ocrText: text,
         tags: tags ?? ['capture', ...state.keywords.take(3)],
       );
-      state = state.copyWith(lastCaptureText: null, summary: null, keywords: []);
+      state = state.copyWith(clearCapture: true);
     } catch (e, stack) {
       AppLogger.error('saveLastCapture failed', error: e, stackTrace: stack);
     }

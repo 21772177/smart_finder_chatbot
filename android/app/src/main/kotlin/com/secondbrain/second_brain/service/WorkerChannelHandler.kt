@@ -6,10 +6,11 @@ import io.flutter.plugin.common.MethodChannel
 
 class WorkerChannelHandler {
     private val channelName = "com.secondbrain/worker"
+    private var methodChannel: MethodChannel? = null
 
     fun register(flutterEngine: FlutterEngine, activity: Activity) {
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName)
-            .setMethodCallHandler { call, result ->
+        methodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName).apply {
+            setMethodCallHandler { call, result ->
                 when (call.method) {
                     "scheduleCleanup" -> {
                         CleanupWorker.schedule(activity.applicationContext)
@@ -18,7 +19,11 @@ class WorkerChannelHandler {
                     else -> result.notImplemented()
                 }
             }
+        }
     }
 
-    fun unregister() {}
+    fun unregister() {
+        methodChannel?.setMethodCallHandler(null)
+        methodChannel = null
+    }
 }

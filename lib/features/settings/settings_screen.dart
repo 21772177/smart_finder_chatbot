@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../core/logger.dart';
 import '../memory/memory_repository.dart';
 import '../backup/cloud_backup_service.dart';
@@ -11,7 +12,6 @@ import '../security/secure_key_service.dart';
 import 'settings_service.dart';
 import 'blocked_apps_screen.dart';
 import '../analyze/cloud_analysis_service.dart';
-import '../analyze/local_llm_service.dart';
 import '../permissions/permission_dashboard.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -147,22 +147,25 @@ class SettingsScreen extends ConsumerWidget {
                   onChanged: (v) => ref.read(settingsServiceProvider).enableWhisper = v,
                 ),
                 const Divider(height: 1),
-                SwitchListTile(
+                ListTile(
+                  leading: const Icon(Icons.smart_toy),
                   title: const Text('Local LLM'),
-                  subtitle: const Text('On-device inference via llama.cpp'),
-                  value: settings.enableLocalLLM,
-                  onChanged: (v) => ref.read(settingsServiceProvider).enableLocalLLM = v,
-                ),
-                if (settings.enableLocalLLM) ...[
-                  const Divider(height: 1),
-                  ListTile(
-                    leading: const Icon(Icons.smart_toy),
-                    title: const Text('Manage Models'),
-                    subtitle: const Text('Download and load GGUF models'),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => _showLocalLlmDialog(context, ref),
+                  subtitle: const Text('On-device inference — coming soon'),
+                  trailing: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.secondaryContainer,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      'Coming Soon',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: theme.colorScheme.onSecondaryContainer,
+                      ),
+                    ),
                   ),
-                ],
+                ),
               ],
             ),
           ),
@@ -386,73 +389,6 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _showLocalLlmDialog(BuildContext context, WidgetRef ref) async {
-    final service = ref.read(localLlmServiceProvider);
-    final messenger = ScaffoldMessenger.of(context);
-
-    await showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setState) => AlertDialog(
-          title: const Text('Local LLM Models'),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: LocalLLMService.recommendedModels.length,
-              itemBuilder: (ctx, i) {
-                final model = LocalLLMService.recommendedModels[i];
-                final isActive = service.modelName == model.url.split('/').last;
-                return Card(
-                  child: ListTile(
-                    title: Text(model.name),
-                    subtitle: Text('${model.description} (${model.sizeMb} MB)'),
-                    trailing: isActive
-                        ? const Icon(Icons.check_circle, color: Colors.green)
-                        : FilledButton.tonal(
-                            onPressed: () async {
-                              final filename = model.url.split('/').last;
-                              messenger.showSnackBar(
-                                SnackBar(content: Text('Downloading ${model.name}...')),
-                              );
-                              final ok = await service.downloadModel(model.url, filename);
-                              if (ok) {
-                                final loaded = await service.loadModel(filename);
-                                if (loaded) {
-                                  messenger.showSnackBar(
-                                    SnackBar(content: Text('${model.name} loaded')),
-                                  );
-                                }
-                              }
-                              if (ctx.mounted) setState(() {});
-                            },
-                            child: const Text('Download'),
-                          ),
-                  ),
-                );
-              },
-            ),
-          ),
-          actions: [
-            if (service.isReady)
-              TextButton(
-                onPressed: () async {
-                  await service.unloadModel();
-                  messenger.showSnackBar(const SnackBar(content: Text('Model unloaded')));
-                  if (ctx.mounted) setState(() {});
-                },
-                child: const Text('Unload Model'),
-              ),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Close'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Future<void> _showThemeDialog(BuildContext context, WidgetRef ref, SettingsService settings) async {
     await showDialog(
       context: context,
@@ -507,17 +443,23 @@ class SettingsScreen extends ConsumerWidget {
 
     final json = const JsonEncoder.withIndent('  ').convert(data);
 
-    final dir = await getApplicationDocumentsDirectory();
+    final dir = await getTemporaryDirectory();
     final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
     final file = File('${dir.path}/second_brain_export_$timestamp.json');
     await file.writeAsString(json);
 
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text('Exported ${entries.length} memories to ${file.path}'),
-        duration: const Duration(seconds: 4),
-      ),
+    final result = await Share.shareXFiles(
+      [XFile(file.path, mimeType: 'application/json', name: file.path.split('/').last)],
+      subject: 'Second Brain Export',
     );
+
+    if (result.status == ShareResultStatus.success) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Exported ${entries.length} memories')),
+      );
+    } else if (result.status == ShareResultStatus.dismissed) {
+      messenger.showSnackBar(const SnackBar(content: Text('Export cancelled')));
+    }
   }
 
   Future<void> _deleteAllData(BuildContext context, WidgetRef ref) async {
@@ -609,8 +551,10 @@ class SettingsScreen extends ConsumerWidget {
       await backupService.restoreDatabase();
 
       ref.invalidate(memoryRepositoryProvider);
+      final db = ref.read(databaseProvider);
+      await db.rebuildVectorIndex();
       AppLogger.info('Database restored from Google Drive', tag: 'BACKUP');
-      messenger.showSnackBar(const SnackBar(content: Text('Database restored successfully. Restart app.')));
+      messenger.showSnackBar(const SnackBar(content: Text('Database restored successfully.')));
     } catch (e, stack) {
       AppLogger.error('Cloud restore failed', error: e, stackTrace: stack);
       messenger.showSnackBar(SnackBar(content: Text('Restore failed: $e')));

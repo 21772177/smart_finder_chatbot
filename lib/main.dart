@@ -9,6 +9,7 @@ export 'app.dart';
 import 'app.dart';
 
 import 'core/logger.dart';
+import 'firebase_options.dart';
 import 'features/settings/settings_service.dart';
 
 void main() async {
@@ -18,11 +19,13 @@ void main() async {
     DeviceOrientation.portraitDown,
   ]);
 
-  // Initialize Firebase — gracefully degrade if google-services.json is missing
+  // Initialize Firebase — gracefully degrade if not configured
   bool firebaseReady = false;
   try {
-    await Firebase.initializeApp();
-    firebaseReady = true;
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    firebaseReady = DefaultFirebaseOptions.android.apiKey.isNotEmpty;
   } catch (_) {
     // Firebase not configured (missing google-services.json or Firebase project).
     // App runs without Crashlytics.

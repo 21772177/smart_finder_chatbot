@@ -12,15 +12,26 @@ class CloudAnalysisService {
   String? _openaiApiKey;
   String? _anthropicApiKey;
   LLMProvider? _currentProvider;
+  String _geminiModelName = 'gemini-2.0-flash';
+  String _openaiModelName = 'gpt-4o-mini';
+  String _anthropicModelName = 'claude-3-haiku-20240307';
 
   bool get isConfigured => _geminiModel != null || _openaiApiKey != null || _anthropicApiKey != null;
 
-  void configure(LLMProvider provider, String apiKey) {
+  void configure(LLMProvider provider, String apiKey, {
+    String? geminiModel,
+    String? openaiModel,
+    String? anthropicModel,
+  }) {
     _currentProvider = provider;
+    if (geminiModel != null) _geminiModelName = geminiModel;
+    if (openaiModel != null) _openaiModelName = openaiModel;
+    if (anthropicModel != null) _anthropicModelName = anthropicModel;
+
     switch (provider) {
       case LLMProvider.gemini:
         _geminiModel = GenerativeModel(
-          model: 'gemini-2.0-flash',
+          model: _geminiModelName,
           apiKey: apiKey,
           generationConfig: GenerationConfig(
             temperature: 0.3,
@@ -85,7 +96,7 @@ class CloudAnalysisService {
         'Content-Type': 'application/json',
       },
       body: jsonEncode({
-        'model': 'gpt-4o-mini',
+        'model': _openaiModelName,
         'messages': [
           {'role': 'user', 'content': prompt},
         ],
@@ -118,7 +129,7 @@ class CloudAnalysisService {
         'anthropic-version': '2023-06-01',
       },
       body: jsonEncode({
-        'model': 'claude-3-haiku-20240307',
+        'model': _anthropicModelName,
         'max_tokens': 512,
         'messages': [
           {'role': 'user', 'content': prompt},
@@ -206,19 +217,19 @@ final cloudAnalysisServiceProvider = Provider<CloudAnalysisService>((ref) {
     case LLMProvider.gemini:
       final key = settings.geminiApiKey;
       if (key != null && key.isNotEmpty) {
-        service.configure(LLMProvider.gemini, key);
+        service.configure(LLMProvider.gemini, key, geminiModel: settings.geminiModel);
       }
       break;
     case LLMProvider.openai:
       final key = settings.openaiApiKey;
       if (key != null && key.isNotEmpty) {
-        service.configure(LLMProvider.openai, key);
+        service.configure(LLMProvider.openai, key, openaiModel: settings.openaiModel);
       }
       break;
     case LLMProvider.anthropic:
       final key = settings.anthropicApiKey;
       if (key != null && key.isNotEmpty) {
-        service.configure(LLMProvider.anthropic, key);
+        service.configure(LLMProvider.anthropic, key, anthropicModel: settings.anthropicModel);
       }
       break;
   }

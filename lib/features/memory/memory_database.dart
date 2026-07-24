@@ -6,6 +6,8 @@ import 'package:drift/native.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart' as sqlite3;
+import 'package:sqlite3/open.dart' as sqlite3_open;
+import 'package:sqlcipher_flutter_libs/sqlcipher_flutter_libs.dart';
 import '../security/secure_key_service.dart';
 import 'memory_model.dart';
 import 'embedding_service.dart';
@@ -15,6 +17,7 @@ part 'memory_database.g.dart';
 
 final _embedder = EmbeddingService();
 final _vectorIndex = VectorIndex(256);
+bool _sqlCipherInitialized = false;
 
 class Memories extends Table {
   TextColumn get id => text()();
@@ -70,6 +73,24 @@ class AppDatabase extends _$AppDatabase {
     _vectorIndex.add(entry.id, Float32List.fromList(embeddingVec));
   }
 
+  Future<void> updateMemoryEntry(MemoryEntry entry) async {
+    final text = '${entry.title} ${entry.content} ${entry.ocrText ?? ''} ${entry.tags.join(' ')}';
+    final embeddingVec = _embedder.embed(text);
+    final embedding = _embedder.vectorToJson(embeddingVec);
+
+    await (update(memories)..where((t) => t.id.equals(entry.id))).write(MemoriesCompanion(
+      title: Value(entry.title),
+      content: Value(entry.content),
+      sourceApp: Value(entry.sourceApp),
+      ocrText: Value(entry.ocrText),
+      tags: Value(jsonEncode(entry.tags)),
+      embedding: Value(embedding),
+      updatedAt: Value(entry.updatedAt),
+    ));
+
+    _vectorIndex.add(entry.id, Float32List.fromList(embeddingVec));
+  }
+
   Future<void> deleteMemoryEntry(String id) async {
     await (delete(memories)..where((t) => t.id.equals(id))).go();
     _vectorIndex.remove(id);
@@ -85,12 +106,12 @@ class AppDatabase extends _$AppDatabase {
     return rows.map(_rowToEntry).toList();
   }
 
-  Future<List<MemorySearchResult>> search(String query) async {
+  Future<List<MemorySearchResult>> search(String query, {int limit = 20, int offset = 0}) async {
     final queryEmbedding = _embedder.embed(query);
 
     // Use vector index for fast search
     if (_vectorIndex.size > 0) {
-      final results = _vectorIndex.search(Float32List.fromList(queryEmbedding), 20);
+      final results = _vectorIndex.search(Float32List.fromList(queryEmbedding), limit + offset);
       final searchResults = <MemorySearchResult>[];
 
       for (final r in results) {
@@ -99,7 +120,7 @@ class AppDatabase extends _$AppDatabase {
           searchResults.add(MemorySearchResult(memoryEntry: _rowToEntry(row), score: 1.0 - r.distance / 2));
         }
       }
-      return searchResults.take(20).toList();
+      return searchResults.skip(offset).take(limit).toList();
     }
 
     // Fallback to full scan
@@ -118,7 +139,7 @@ class AppDatabase extends _$AppDatabase {
     }
 
     results.sort((a, b) => b.score.compareTo(a.score));
-    return results.take(20).toList();
+    return results.skip(offset).take(limit).toList();
   }
 
   Future<void> rebuildVectorIndex() async {
@@ -151,14 +172,28 @@ class AppDatabase extends _$AppDatabase {
 
 LazyDatabase _openConnection() {
   return LazyDatabase(() async {
+    // Ensure SQLCipher native library is loaded instead of standard SQLite
+    if (!_sqlCipherInitialized) {
+      sqlite3_open.open.overrideFor(sqlite3_open.OperatingSystem.android, openCipherOnAndroid);
+      _sqlCipherInitialized = true;
+    }
+
     final dbFolder = await getApplicationDocumentsDirectory();
     final file = File(p.join(dbFolder.path, 'second_brain_enc.db'));
 
     final nativeDb = sqlite3.sqlite3.open(file.path);
 
+    // Verify SQLCipher is actually loaded
+    final cipherVersion = nativeDb.select('PRAGMA cipher_version;');
+    if (cipherVersion.isEmpty) {
+      throw StateError(
+        'SQLCipher library is not available. Database encryption cannot be guaranteed.',
+      );
+    }
+
     final secureKeyService = SecureKeyService();
     final key = await secureKeyService.getDbKey();
-    nativeDb.execute('PRAGMA key = "$key"');
+    nativeDb.execute("PRAGMA key = '$key'");
     nativeDb.execute('PRAGMA cipher_compatibility = 4');
 
     return NativeDatabase.opened(nativeDb);

@@ -344,7 +344,7 @@ class _OverlayScreenState extends ConsumerState<OverlayScreen>
                       Row(
                         children: [
                           FilledButton.icon(
-                            onPressed: () => notifier.saveLastCapture(),
+                            onPressed: () => _showSaveDialog(context, ref, notifier, state),
                             icon: const Icon(Icons.save),
                             label: const Text('Save to Memory'),
                           ),
@@ -434,6 +434,74 @@ class _OverlayScreenState extends ConsumerState<OverlayScreen>
         ],
       ),
     );
+  }
+
+  Future<void> _showSaveDialog(BuildContext context, WidgetRef ref, OverlayNotifier notifier, OverlayState state) async {
+    final suggestedTags = ['capture', ...state.keywords.take(3)];
+    final tagController = TextEditingController(text: suggestedTags.join(', '));
+    final titleController = TextEditingController(
+      text: 'Captured ${DateTime.now().toString().substring(0, 19)}',
+    );
+
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Save to Memory'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: titleController,
+              decoration: const InputDecoration(
+                labelText: 'Title',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: tagController,
+              decoration: const InputDecoration(
+                labelText: 'Tags (comma-separated)',
+                hintText: 'e.g. meeting, todo, important',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx, {
+                'title': titleController.text.trim(),
+                'tags': tagController.text.trim(),
+              });
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    if (result != null && context.mounted) {
+      final tags = result['tags']!
+          .split(',')
+          .map((t) => t.trim())
+          .where((t) => t.isNotEmpty)
+          .toList();
+      await notifier.saveLastCapture(
+        title: result['title']?.isNotEmpty == true ? result['title'] : null,
+        tags: tags,
+      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Saved to memory')),
+        );
+      }
+    }
   }
 
   Widget _buildWarningCard(ColorScheme colorScheme, IconData icon, String message) {

@@ -156,7 +156,7 @@ class OverlayAccessibilityService : AccessibilityService() {
             return
         }
         val text = textList.joinToString("").trim()
-        if (text.isNotEmpty()) {
+        if (text.isNotEmpty() && (textBuffer.isEmpty() || textBuffer.last() != text)) {
             textBuffer.add(text)
             if (textBuffer.size > 50) textBuffer.removeAt(0)
         }
@@ -218,8 +218,15 @@ class OverlayAccessibilityService : AccessibilityService() {
         }
 
         val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
-        val savedX = prefs.getInt("flutter.overlay_x", 0)
-        val savedY = prefs.getInt("flutter.overlay_y", 100)
+        val savedX = prefs.getInt("flutter.overlay_x", -1)
+        val savedY = prefs.getInt("flutter.overlay_y", -1)
+
+        // Default to center-right of screen if not previously positioned
+        val displayMetrics = resources.displayMetrics
+        val screenWidth = displayMetrics.widthPixels
+        val screenHeight = displayMetrics.heightPixels
+        val defaultX = if (savedX == -1) screenWidth - (120 * displayMetrics.density).toInt() else savedX
+        val defaultY = if (savedY == -1) screenHeight / 2 else savedY
 
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -230,8 +237,8 @@ class OverlayAccessibilityService : AccessibilityService() {
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = savedX
-            y = savedY
+            x = defaultX
+            y = defaultY
         }
         overlayParams = params
 

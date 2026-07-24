@@ -30,9 +30,31 @@ class MemoryRepository {
     await _db.insertMemoryEntry(entry);
   }
 
+  Future<void> updateMemoryEntry({
+    required String id,
+    required String title,
+    required String content,
+    String? sourceApp,
+    String? ocrText,
+    List<String>? tags,
+  }) async {
+    final now = DateTime.now();
+    final entry = MemoryEntry(
+      id: id,
+      title: title,
+      content: content,
+      sourceApp: sourceApp,
+      ocrText: ocrText,
+      tags: tags ?? [],
+      createdAt: now,
+      updatedAt: now,
+    );
+    await _db.updateMemoryEntry(entry);
+  }
+
   Future<List<MemoryEntry>> getAllEntries() => _db.getAllEntries();
 
-  Future<List<MemorySearchResult>> search(String query) => _db.search(query);
+  Future<List<MemorySearchResult>> search(String query, {int limit = 20, int offset = 0}) => _db.search(query, limit: limit, offset: offset);
 
   Future<void> deleteEntry(String id) => _db.deleteMemoryEntry(id);
 

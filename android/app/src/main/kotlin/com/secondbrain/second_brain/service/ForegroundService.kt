@@ -1,5 +1,6 @@
 package com.secondbrain.second_brain.service
 
+import android.app.Activity
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -20,6 +21,9 @@ class ForegroundService : Service() {
         private const val NOTIFICATION_ID = 1001
         private const val ACTION_START = "com.secondbrain.action.START_FOREGROUND"
         private const val ACTION_STOP = "com.secondbrain.action.STOP_FOREGROUND"
+
+        var isRunning = false
+            private set
 
         fun start(context: Context) {
             val intent = Intent(context, ForegroundService::class.java).apply {
@@ -50,13 +54,25 @@ class ForegroundService : Service() {
             ACTION_START -> {
                 val notification = buildNotification()
                 startForeground(NOTIFICATION_ID, notification)
+                isRunning = true
             }
             ACTION_STOP -> {
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
+                isRunning = false
             }
         }
         return START_STICKY
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        isRunning = false
+    }
+
+    override fun onDestroy() {
+        isRunning = false
+        super.onDestroy()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null

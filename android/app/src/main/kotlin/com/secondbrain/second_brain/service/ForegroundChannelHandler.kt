@@ -10,35 +10,41 @@ import io.flutter.plugin.common.MethodChannel
 
 class ForegroundChannelHandler {
     private val channelName = "com.secondbrain/foreground_service"
+    private var methodChannel: MethodChannel? = null
 
     fun register(flutterEngine: FlutterEngine, activity: Activity) {
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName)
-            .setMethodCallHandler { call, result ->
-                when (call.method) {
-                    "startService" -> {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                            if (ContextCompat.checkSelfPermission(
-                                    activity, Manifest.permission.POST_NOTIFICATIONS
-                                ) != PackageManager.PERMISSION_GRANTED
-                            ) {
-                                result.error("PERMISSION_DENIED", "Notification permission not granted", null)
-                                return@setMethodCallHandler
+        methodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName)
+            .apply {
+                setMethodCallHandler { call, result ->
+                    when (call.method) {
+                        "startService" -> {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                if (ContextCompat.checkSelfPermission(
+                                        activity, Manifest.permission.POST_NOTIFICATIONS
+                                    ) != PackageManager.PERMISSION_GRANTED
+                                ) {
+                                    result.error("PERMISSION_DENIED", "Notification permission not granted", null)
+                                    return@setMethodCallHandler
+                                }
                             }
+                            ForegroundService.start(activity.applicationContext)
+                            result.success(true)
                         }
-                        ForegroundService.start(activity.applicationContext)
-                        result.success(true)
+                        "stopService" -> {
+                            ForegroundService.stop(activity.applicationContext)
+                            result.success(true)
+                        }
+                        "isRunning" -> {
+                            result.success(ForegroundService.isRunning)
+                        }
+                        else -> result.notImplemented()
                     }
-                    "stopService" -> {
-                        ForegroundService.stop(activity.applicationContext)
-                        result.success(true)
-                    }
-                    "isRunning" -> {
-                        result.success(false)
-                    }
-                    else -> result.notImplemented()
                 }
             }
     }
 
-    fun unregister() {}
+    fun unregister() {
+        methodChannel?.setMethodCallHandler(null)
+        methodChannel = null
+    }
 }

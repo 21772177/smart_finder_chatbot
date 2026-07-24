@@ -4,6 +4,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 enum LocalLLMStatus { unloaded, downloading, ready, error }
 
+class DownloadProgress {
+  final int bytesDownloaded;
+  final int totalBytes;
+  final int progress;
+
+  const DownloadProgress({
+    required this.bytesDownloaded,
+    required this.totalBytes,
+    required this.progress,
+  });
+}
+
 class RecommendedModel {
   final String name;
   final String url;
@@ -24,11 +36,36 @@ class LocalLLMService {
   String? _modelName;
   LocalLLMStatus _status = LocalLLMStatus.unloaded;
   String? _error;
+  DownloadProgress? _downloadProgress;
+  final _progressController = StreamController<DownloadProgress>.broadcast();
 
   LocalLLMStatus get status => _status;
   String? get modelName => _modelName;
   String? get error => _error;
   bool get isReady => _status == LocalLLMStatus.ready;
+  DownloadProgress? get downloadProgress => _downloadProgress;
+  Stream<DownloadProgress> get progressStream => _progressController.stream;
+
+  LocalLLMService() {
+    _channel.setMethodCallHandler(_handleMethodCall);
+  }
+
+  Future<void> _handleMethodCall(MethodCall call) async {
+    switch (call.method) {
+      case 'onDownloadProgress':
+        final args = call.arguments as Map<dynamic, dynamic>;
+        _downloadProgress = DownloadProgress(
+          bytesDownloaded: args['bytesDownloaded'] as int,
+          totalBytes: args['totalBytes'] as int,
+          progress: args['progress'] as int,
+        );
+        _progressController.add(_downloadProgress!);
+        break;
+      case 'onDownloadComplete':
+        _downloadProgress = null;
+        break;
+    }
+  }
 
   static const recommendedModels = [
     RecommendedModel(
@@ -54,6 +91,7 @@ class LocalLLMService {
   Future<bool> downloadModel(String url, String filename) async {
     _status = LocalLLMStatus.downloading;
     _modelName = filename;
+    _downloadProgress = null;
 
     try {
       final result = await _channel.invokeMethod<bool>('downloadModel', {
@@ -71,7 +109,20 @@ class LocalLLMService {
       _status = LocalLLMStatus.error;
       _error = e.message ?? 'Download failed';
       return false;
+    } finally {
+      _downloadProgress = null;
     }
+  }
+
+  Future<void> cancelDownload() async {
+    try {
+      await _channel.invokeMethod('cancelDownload');
+    } on PlatformException {
+      // fall through
+    }
+    _status = LocalLLMStatus.unloaded;
+    _downloadProgress = null;
+    _modelName = null;
   }
 
   Future<bool> loadModel(String path) async {
@@ -153,6 +204,10 @@ class LocalLLMService {
       default:
         return message ?? 'Unknown error loading model';
     }
+  }
+
+  void dispose() {
+    _progressController.close();
   }
 }
 

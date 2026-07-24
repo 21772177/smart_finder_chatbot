@@ -9,17 +9,13 @@ import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:googleapis_auth/googleapis_auth.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/logger.dart';
 import '../security/secure_key_service.dart';
 
 class CloudBackupService {
-  static const _prefsKey = 'cloud_backup_enabled';
   static const _backupFolderName = 'SecondBrain_Backups';
 
   GoogleSignInClientAuthorization? _authz;
-
-  // ignore: unused_field
   final SecureKeyService _keyService;
 
   CloudBackupService(this._keyService);
@@ -341,15 +337,6 @@ class CloudBackupService {
     }
   }
 
-  Future<bool> isBackupEnabled() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_prefsKey) ?? false;
-  }
-
-  Future<void> setBackupEnabled(bool enabled) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_prefsKey, enabled);
-  }
 }
 
 class BackupEncrypted {

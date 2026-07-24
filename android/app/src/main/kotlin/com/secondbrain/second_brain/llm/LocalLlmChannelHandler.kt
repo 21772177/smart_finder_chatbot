@@ -36,6 +36,10 @@ class LocalLlmChannelHandler {
                         unloadModel()
                         result.success(true)
                     }
+                    "cancelDownload" -> {
+                        cancelDownload()
+                        result.success(true)
+                    }
                     else -> result.notImplemented()
                 }
             }
@@ -63,6 +67,7 @@ class LocalLlmChannelHandler {
                 var bytesRead: Int
                 var totalBytes = 0L
                 val contentLength = connection.contentLengthLong
+                var lastProgressTime = 0L
 
                 while (input.read(buffer).also { bytesRead = it } != -1) {
                     if (Thread.interrupted()) {
@@ -74,16 +79,36 @@ class LocalLlmChannelHandler {
                     }
                     output.write(buffer, 0, bytesRead)
                     totalBytes += bytesRead
+
+                    val now = System.currentTimeMillis()
+                    if (now - lastProgressTime > 500 && contentLength > 0) {
+                        lastProgressTime = now
+                        val progress = (totalBytes * 100 / contentLength).toInt()
+                        methodChannel?.invokeMethod("onDownloadProgress", mapOf(
+                            "bytesDownloaded" to totalBytes,
+                            "totalBytes" to contentLength,
+                            "progress" to progress
+                        ))
+                    }
                 }
 
                 input.close()
                 output.close()
+                methodChannel?.invokeMethod("onDownloadComplete", mapOf(
+                    "filename" to filename,
+                    "path" to file.absolutePath
+                ))
                 result.success(true)
             } catch (e: Exception) {
                 result.error("DOWNLOAD_ERROR", e.message, null)
             }
         }
         activeDownload?.start()
+    }
+
+    fun cancelDownload() {
+        activeDownload?.interrupt()
+        activeDownload = null
     }
 
     private fun loadModel(context: Context, path: String, result: MethodChannel.Result) {
