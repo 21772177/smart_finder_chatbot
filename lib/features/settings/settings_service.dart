@@ -39,8 +39,8 @@ class SettingsService {
   bool get enableLocalLLM => _prefs.getBool('enable_local_llm') ?? false;
   set enableLocalLLM(bool value) => _prefs.setBool('enable_local_llm', value);
 
-  bool get enableWhisper => _prefs.getBool('enable_whisper') ?? false;
-  set enableWhisper(bool value) => _prefs.setBool('enable_whisper', value);
+  bool get enableAudioTranscription => _prefs.getBool('enable_audio_transcription') ?? false;
+  set enableAudioTranscription(bool value) => _prefs.setBool('enable_audio_transcription', value);
 
   LLMProvider get llmProvider => LLMProvider.values.byName(_prefs.getString('llm_provider') ?? 'gemini');
   set llmProvider(LLMProvider value) => _prefs.setString('llm_provider', value.name);

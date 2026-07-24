@@ -165,12 +165,12 @@ class SettingsScreen extends ConsumerWidget {
                   ),
                 ],
                 const Divider(height: 1),
-                SwitchListTile(
-                  title: const Text('Audio Transcription'),
-                  subtitle: const Text('Enable on-device transcription for audio/video'),
-                  value: settings.enableWhisper,
-                  onChanged: (v) => ref.read(settingsServiceProvider).enableWhisper = v,
-                ),
+                  SwitchListTile(
+                    title: const Text('Audio Transcription'),
+                    subtitle: const Text('Transcribe audio when screen content is empty'),
+                    value: settings.enableAudioTranscription,
+                    onChanged: (v) => ref.read(settingsServiceProvider).enableAudioTranscription = v,
+                  ),
                 const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.smart_toy),

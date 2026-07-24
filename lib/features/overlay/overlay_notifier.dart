@@ -181,7 +181,7 @@ class OverlayNotifier extends StateNotifier<OverlayState> {
         }
       }
 
-      if (text.trim().isEmpty && _settings.enableWhisper) {
+      if (text.trim().isEmpty && _settings.enableAudioTranscription) {
         final hasPerm = await _audioService.checkPermission();
         if (hasPerm) {
           final transcript = await _audioService.startListening();

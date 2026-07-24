@@ -38,8 +38,8 @@ void main() {
         expect(service.enableLocalLLM, isFalse);
       });
 
-      test('enableWhisper defaults to false', () {
-        expect(service.enableWhisper, isFalse);
+      test('enableAudioTranscription defaults to false', () {
+        expect(service.enableAudioTranscription, isFalse);
       });
 
       test('llmProvider defaults to gemini', () {
@@ -103,9 +103,9 @@ void main() {
         expect(service.enableLocalLLM, isTrue);
       });
 
-      test('enableWhisper persists', () {
-        service.enableWhisper = true;
-        expect(service.enableWhisper, isTrue);
+      test('enableAudioTranscription persists', () {
+        service.enableAudioTranscription = true;
+        expect(service.enableAudioTranscription, isTrue);
       });
 
       test('llmProvider persists', () {
